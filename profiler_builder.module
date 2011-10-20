@@ -13,7 +13,11 @@
  * Implementation of hook_permission()
  */
 function profiler_builder_permission() {
-  return array('administer profiler builder');
+    return array('administer profiler builder' => array(
+    'title' => 'Administer profiler builder',
+    'description' => 'Administer profiler builder',
+    ),
+  );
 }
 /**
  * Implementation of hook_menu().
