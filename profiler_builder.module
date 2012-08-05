@@ -1,14 +1,14 @@
 <?php
-//Copyright (C) 2011  The Pennsylvania State University
+// Copyright (C) 2011  The Pennsylvania State University
 //
-//Bryan Ollendyke
-//bto108@psu.edu
+// Bryan Ollendyke
+// bto108@psu.edu
 //
-//Keith D. Bailey
-//kdb163@psu.edu
+// Keith D. Bailey
+// kdb163@psu.edu
 //
-//12 Borland
-//University Park,  PA 16802
+// 12 Borland
+// University Park,  PA 16802
 /**
  * Implementation of hook_permission()
  */
@@ -19,6 +19,7 @@ function profiler_builder_permission() {
     ),
   );
 }
+
 /**
  * Implementation of hook_menu().
  */
@@ -33,6 +34,7 @@ function profiler_builder_menu() {
   );
   return $items;
 }
+
 /**
  * Implementation of hook_settings()
  */
@@ -161,17 +163,25 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
 }
 //helper function to gather ignored values
 function _profiler_builder_ignore_list() {
-  return array(
+  $ignore_list = array(
     'features_codecache',
     'views_block_hashes',
     'drupal_private_key',
+    'cache_content_flush_cache_page',
     'cache_content_flush_cache_block',
-	'cache_content_flush_cache_page',
     'cache_flush_cache_update',
-	//TODO abstract into a hook as these are psu specific
-    'webaccess_cookie',
-    'webaccess_domain',
-    'webaccess_init_enable',
-    'webaccess_logout_url',
+    'cron_key',
+    'cron_last',
+    'css_js_query_string',
+    'email__active_tab',
+    'install_profile',
+    'install_task',
+    'install_time',
+    'menu_masks',
+    'site_mail',
+    'update_last_check',
   );
+  // allow modification via profiler_builder_ignore_alter
+  drupal_alter('profiler_builder_ignore', $ignore_list);
+  return $ignore_list;
 }
