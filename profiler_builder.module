@@ -83,6 +83,7 @@ function _profiler_builder_settings() {
   );
   return $form;  
 }
+
 //helper function to build out the file pieces
 function _profiler_builder_info_file(&$info, &$vars, &$drush) {
   //build the array we need  
@@ -155,12 +156,16 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
   //drush
   $drush = '';
   foreach ($data as $package => $projects) {
-    foreach ($projects as $project => $version) {
-      $drush.= 'projects['. $project .'] = '. str_replace('7.x-', '', $version) ."\n";
+    // skip core modules
+    // TODO: include Projects in the drush makefile, not Modules
+    if ('Core' !== $package) {
+      foreach ($projects as $project => $version) {
+        $drush.= 'projects['. $project .'] = '. str_replace('7.x-', '', $version) ."\n";
+      }
     }
   }
-  return 1;
 }
+
 //helper function to gather ignored values
 function _profiler_builder_ignore_list() {
   $ignore_list = array(
