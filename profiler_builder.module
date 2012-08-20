@@ -160,7 +160,12 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
     // TODO: include Projects in the drush makefile, not Modules
     if ('Core' !== $package) {
       foreach ($projects as $project => $version) {
+<<<<<<< HEAD
         $drush.= 'projects['. $project .'] = '. str_replace('7.x-', '', $version) ."\n";
+=======
+        $drush.= 'projects['. $project .'][version] = "'. str_replace('7.x-', '', $version) .'"'."\n";
+        $drush.= 'projects['. $project .'][subdir] = "contrib"'."\n";
+>>>>>>> drush make exports with wrapper quotes and places in the contrib folder
       }
     }
   }
