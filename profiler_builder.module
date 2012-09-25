@@ -95,6 +95,8 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
   foreach($result as $val) { 
   $system[$val->name]=unserialize($val->info); 
   }
+  // allow modification via profiler_builder_ignore_alter
+  drupal_alter('profiler_builder_modules_list', $system);
   //convert data
  foreach($system as $module => $info) {
     //account for the other package in module listing
@@ -186,6 +188,13 @@ function _profiler_builder_ignore_list() {
     'menu_masks',
     'site_mail',
     'update_last_check',
+    'wipe_rebuild',
+    'update_notify_emails',
+    'clean_url',
+    'file_temporary_path',
+    'ctools_last_cron',
+    'node_cron_last',
+    'user_admin_role',
   );
   // allow modification via profiler_builder_ignore_alter
   drupal_alter('profiler_builder_ignore', $ignore_list);
