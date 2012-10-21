@@ -1,4 +1,4 @@
 Profiler Builder
 ===========================================
-This is the master branch for profiler. 
-All Development will be on the 6.x-1.x and 7.x-1.x branches. 
+Install this module and then go to:  admin/config/development/profiler_builder
+Click the .info file tab, copy and paste into your associated .info profiler file
