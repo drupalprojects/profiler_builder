@@ -1,4 +1,5 @@
 <?php
+define('PROIFLER_BUILDER_ACTIVE_CORE', '7');
 /**
  * Implements hook_permission().
  */
@@ -21,63 +22,15 @@ function profiler_builder_menu() {
     'page arguments' => array('_profiler_builder_settings'),
     'description' => 'Build distribution files from current settings',
     'access arguments' => array('administer profiler builder'),
+    'file' => 'profiler_builder.admin.inc',
   );
   return $items;
 }
 
 /**
- * Implements hook_settings().
- */
-function _profiler_builder_settings() {
-  $form = array();
-  // call helper function to populate the three fields
-  _profiler_builder_info_file($info, $vars, $drush);
-  // info file
-  $form['info_file'] = array(
-    '#weight' => '-1',
-    '#description' => t('This is what the .info file would look like if you were to make a distribution off of this site as it exists currently.'),
-    '#collapsed' => '1',
-    '#type' => 'fieldset',
-    '#collapsible' => '1',
-    '#title' => t('.info file'),
-  );
-  $form['info_file']['info_file_contents'] = array(
-    '#description' => t('Copy this into your .info file for the distribution you are making'),
-    '#weight' => '0',
-    '#type' => 'textarea',
-    '#title' => t('File contents'),
-    '#value' => $info,
-  );
-  $form['info_file']['vars'] = array(
-    '#description' => t('Cheatsheet for all variables'),
-    '#weight' => '1',
-    '#type' => 'textarea',
-    '#title' => t('Variables'),
-    '#value' => $vars,
-  );
-  // drush make
-  $form['drush_file'] = array(
-    '#weight' => '0',
-    '#description' => t('This is what the .make file would look like if you were to make a distribution off of this site as it exists currently.'),
-    '#collapsed' => '1',
-    '#type' => 'fieldset',
-    '#collapsible' => '1',
-    '#title' => t('.make file'),
-  );
-  $form['drush_file']['drush_file_contents'] = array(
-    '#description' => t('Copy this into your .make file for the distribution you are making'),
-    '#weight' => '1',
-    '#type' => 'textarea',
-    '#title' => t('File contents'),
-    '#value' => $drush,
-  );
-  return $form;
-}
-
-/**
  * Helper to build out the file pieces
  */
-function _profiler_builder_info_file(&$info, &$vars, &$drush) {
+function _profiler_builder_components(&$info, &$vars, &$drush) {
   $system = array();
   $data = array();
   $project_data = array();
@@ -128,6 +81,7 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
   foreach ($project_data as $key => $package) {
     ksort($project_data[$key]);
   }
+  $system_features = array();
   // move features to the end if set to avoid conflicts
   if (isset($data['Features'])) {
     $tmp = $data['Features'];
@@ -136,9 +90,13 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
     // move features module ahead of features themselves
     $tmp = array('features' => $data['Features']['features']);
     $data['Features'] = array_merge($tmp, $data['Features']);
+    // build features for later revert
+    $system_features = $data['Features'];
+    // features module can't be reverted
+    unset($system_features['features']);
   }
   // info file of required modules
-  $info = '';
+  $info = "\n; Modules\n";
   foreach ($data as $package => $projects) {
     $info .= "; $package\n";
     foreach ($projects as $project => $version) {
@@ -146,7 +104,7 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
     }
   }
   // variables
-  $vars = "; Variables\n\n";
+  $vars = "\n; Variables\n";
   // array of values we know to ignore automatically
   $ignore_list = _profiler_builder_ignore_list();
   // ignore list as well as all theme settings
@@ -198,7 +156,7 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
     }
   }
   // drush make file build via browser
-  $drush = '';
+  $drush = "; Modules\n";
   $no_version = '';
   foreach ($project_data as $package => $projects) {
     // skip core modules
@@ -206,11 +164,11 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
       foreach ($projects as $project => $version) {
         // if there's no version, add it to the end
         if (empty($version)) {
-          $no_version .= 'projects[' . $project . '][version] = "' . str_replace('7.x-', '', $version) . '"' . "\n";
+          $no_version .= 'projects[' . $project . '][version] = "' . str_replace(PROIFLER_BUILDER_ACTIVE_CORE .'.x-', '', $version) . '"' . "\n";
           $no_version .= 'projects[' . $project . '][subdir] = "custom"' . "\n";
         }
         else {
-          $version = str_replace('7.x-', '', $version);
+          $version = str_replace(PROIFLER_BUILDER_ACTIVE_CORE .'.x-', '', $version);
           // use true dev instead of specific build
           if (strpos($version, '-dev')) {
             $version = substr($version, 0, (strpos($version, '.')+1)) . 'x-dev';
@@ -221,7 +179,33 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
       }
     }
   }
-  $drush .= "; -- Modules without versions -- \n". $no_version;
+  if ($no_version != '') {
+    $drush .= "; -- Modules without versions -- \n". $no_version;
+  }
+  // add all themes to drush file
+  $drush .= "\n; Themes\n";
+  $result = db_select('system', 's')
+  ->fields('s', array('name', 'status', 'info'))
+  ->condition('s.type', 'theme', '=')
+  ->orderBy('s.status', 'DESC')
+  ->orderBy('s.name')
+  ->execute();
+  // add each theme regardless of active status
+  foreach ($result as $theme) {
+    $info = unserialize($theme->info);
+    $version = $info['version'];
+    $project = $info['project'];
+    // ignore core themes
+    if ($project != 'drupal') {
+      $name = $theme->name;
+      $drush .= "; $project\n";
+      $drush .= "projects[$name][version] = \"$version\"\n";
+      $drush .= "projects[$name][type] = \"theme\"\n";
+      $drush .= "projects[$name][subdir] = \"contrib\"\n";
+    }
+  }
+  // return features if found
+  return $system_features;
 }
 
 /**
@@ -229,7 +213,7 @@ function _profiler_builder_info_file(&$info, &$vars, &$drush) {
  */
 function _profiler_builder_ignore_list() {
   $ignore_list = array(
-    'features_codecache',
+    'profiler_builder_codecache',
     'views_block_hashes',
     'drupal_private_key',
     'cache_content_flush_cache_page',
@@ -304,4 +288,68 @@ function profiler_builder_profiler_builder_variables_alter(&$variables) {
       $variables[$var] = $val;
     }
   }
+}
+
+/**
+ * Helper for retrieving info from system table.
+ */
+function profiler_builder_get_info($name = 'standard') {
+  // return info about a single module / profile
+  $result = db_select('system', 's')
+    ->fields('s', array('name'))
+    ->condition('s.status', 1, '=')
+    ->condition('s.type', 'module', '=')
+    ->condition('s.name', $name, '=')
+    ->execute()
+    ->fetchField();
+  // if a name was returned then TRUE
+  if (!empty($result)) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Tar creation function from Features. Written by dmitrig01.
+ *
+ * @param $name
+ *   Filename of the file to be tarred.
+ * @param $contents
+ *   String contents of the file.
+ *
+ * @return
+ *   A string of the tar file contents.
+ */
+function profiler_builder_tar_create($name, $contents) {
+  $tar = '';
+  $binary_data_first = pack("a100a8a8a8a12A12",
+    $name,
+    '100644 ', // File permissions
+    '   765 ', // UID,
+    '   765 ', // GID,
+    sprintf("%11s ", decoct(strlen($contents))), // Filesize,
+    sprintf("%11s", decoct(REQUEST_TIME)) // Creation time
+  );
+  $binary_data_last = pack("a1a100a6a2a32a32a8a8a155a12", '', '', '', '', '', '', '', '', '', '');
+
+  $checksum = 0;
+  for ($i = 0; $i < 148; $i++) {
+    $checksum += ord(substr($binary_data_first, $i, 1));
+  }
+  for ($i = 148; $i < 156; $i++) {
+    $checksum += ord(' ');
+  }
+  for ($i = 156, $j = 0; $i < 512; $i++, $j++) {
+    $checksum += ord(substr($binary_data_last, $j, 1));
+  }
+
+  $tar .= $binary_data_first;
+  $tar .= pack("a8", sprintf("%6s ", decoct($checksum)));
+  $tar .= $binary_data_last;
+
+  $buffer = str_split($contents, 512);
+  foreach ($buffer as $item) {
+    $tar .= pack("a512", $item);
+  }
+  return $tar;
 }
