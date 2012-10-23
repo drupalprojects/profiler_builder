@@ -42,6 +42,18 @@ function _profiler_builder_settings() {
     '#type' => 'checkbox',
     '#default_value' => TRUE,
   );
+  $form['profile_details']['create_admin'] = array(
+    '#title' => t('Create an admin role'),
+    '#description' => t('This creates an administrator role during installation. This is recommended as per the standard install profile but disable it if you are handling roles via Features / Ctools exports.'),
+    '#type' => 'checkbox',
+    '#default_value' => TRUE,
+  );
+  $form['profile_details']['standard_profile'] = array(
+    '#title' => t('Create defaults like standard profile'),
+    '#description' => t('This establishes the Page content type, RDF components, image field and associated taxonomy vocabulary Tags that were present in the "standard" drupal installation profile.'),
+    '#type' => 'checkbox',
+    '#default_value' => FALSE,
+  );
   $form['drush_details'] = array(
     '#description' => t('Details of the drush make file to build'),
     '#collapsed' => FALSE,
@@ -72,6 +84,21 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   $machine_name = $form_state['values']['profile_machine_name'];
   $description = $form_state['values']['description'];
   $exclusive = $form_state['values']['exclusive'];
+  // check if we should use standard profile setup routine
+  if ($form_state['values']['standard_profile']) {
+    $standard_profile_default = _profiler_builder_standard_profile_default();
+  }
+  else {
+    $standard_profile_default = '';
+  }
+  // check if we should create an admin role
+  if ($form_state['values']['create_admin']) {
+    $create_admin = _profiler_builder_create_admin();
+  }
+  else {
+    $create_admin = '';
+  }
+  
   // drush setting for drupal.org distro or local
   $local_dev = $form_state['values']['local_dev'];
   if ($local_dev) {
@@ -87,7 +114,7 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   // build files array
   $files = array(
     $machine_name . '.info' => $info_header . $info . $vars,
-    $machine_name . '.install' => _profiler_builder_install_file($machine_name, $features),
+    $machine_name . '.install' => _profiler_builder_install_file($machine_name, array_keys($features), $standard_profile_default, $create_admin),
     $machine_name . '.profile' => _profiler_builder_profile_file($name, $machine_name),
     $drush_file_name => _profiler_builder_drush_file($drush, $name, $local_dev),
   );
@@ -114,7 +141,7 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
 /**
  * Helper function to create .install file
  */
-function _profiler_builder_install_file($machine_name, $features) {
+function _profiler_builder_install_file($machine_name, $features, $standard_profile_default, $create_admin) {
   $output = '<?php
   !function_exists(\'profiler_v2\') ? require_once(\'libraries/profiler/profiler.inc\') : FALSE;
   profiler_v2(\''. $machine_name .'\');
@@ -209,7 +236,103 @@ function '. $machine_name .'_install() {
     $query->values($block);
   }
   $query->execute();
+  '. $standard_profile_default .'
+  // revert features to ensure they are all installed
+  $features = array(
+    \''. implode("',\n    '", $features) .'\'
+  );
+  features_revert($features);
 
+  // From shortcut.install, add shortcuts to the default set on install
+  $shortcut_set = shortcut_set_load(SHORTCUT_DEFAULT_SET_NAME);
+  $shortcut_set->links = NULL;
+  $shortcut_set->links = array(
+    array(
+      \'link_path\' => \'admin/appearance/settings\', 
+      \'link_title\' => st(\'Theme\'), 
+      \'weight\' => -17,
+    ),
+  );
+  shortcut_set_save($shortcut_set);
+  '. $create_admin .'
+  // Update the menu router information.
+  menu_rebuild();
+  // ignore any rebuild messages
+  node_access_needs_rebuild(FALSE);
+  // ignore any other install messages
+  drupal_get_messages();
+}';
+  return $output;
+}
+
+/**
+ * Helper function to create .info file
+ */
+function _profiler_builder_info_file($name, $machine_name, $description, $exclusive) {
+  $active_core = PROIFLER_BUILDER_ACTIVE_CORE;
+  $output = "; Packaging information for $machine_name\n";
+  $output .= "name = \"$name\"\n";
+  $output .= "description = \"$description\"\n";
+  // if exclusive flag set, include it
+  if ($exclusive) {
+    $output .= "exclusive = \"$exclusive\"\n";
+  }
+  $output .= "core = \"$active_core.x\"\n";
+  return $output;
+}
+
+/**
+ * Helper function to create .profile file
+ */
+function _profiler_builder_profile_file($name, $machine_name) {
+  // assemble default output
+  $output = '<?php
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Allows the profile to alter the site configuration form.
+ */
+function system_form_install_configure_form_alter(&$form, $form_state) {
+  // Pre-populate the site name with the server name.
+  $form[\'site_information\'][\'site_name\'][\'#default_value\'] = \''. $name .'\';
+}
+/**
+ * Implements hook_form_alter().
+ */
+function system_form_install_select_profile_form_alter(&$form, $form_state) {
+  // select '. $machine_name .' install profile by default
+  foreach($form[\'profile\'] as $key => $element) {
+    $form[\'profile\'][$key][\'#value\'] = \''. $machine_name .'\';
+  }
+}';
+  return $output;
+}
+
+/**
+ * Helper to make .make file.
+ */
+function _profiler_builder_drush_file($file_contents, $name, $local) {
+  $active_core = PROIFLER_BUILDER_ACTIVE_CORE;
+  $output = "; $name make file\n";
+  $output .= "core = \"$active_core.x\"\n";
+  $output .= "api = \"2\"\n";
+  // change file based on local development or d.o.
+  if ($local) {
+    $output .= "; comment this out in to use on drupal.org\n";
+    $output .= "projects[drupal][version] = \"$active_core.x\"\n";
+  }
+  else {
+    $output .= "; comment this in to use in local development\n";
+    $output .= "; projects[drupal][version] = \"$active_core.x\"\n";
+  }
+  return $output . $file_contents;
+}
+
+/**
+ * Helper to return standard profile default settings.
+ */
+function _profiler_builder_standard_profile_default() {
+  $output = '
   // Insert default pre-defined node types into the database. For a complete
   // list of available node type attributes, refer to the node type API
   // documentation at: http://api.drupal.org/api/HEAD/function/hook_node_info.
@@ -250,15 +373,6 @@ function '. $machine_name .'_install() {
 
   // Don\'t display date and author information for "Page" nodes by default.
   variable_set(\'node_submitted_page\', FALSE);
-
-  // Enable user picture support and set the default to a square thumbnail option.
-  variable_set(\'user_pictures\', \'1\');
-  variable_set(\'user_picture_dimensions\', \'1024x1024\');
-  variable_set(\'user_picture_file_size\', \'800\');
-  variable_set(\'user_picture_style\', \'thumbnail\');
-
-  // Allow visitor account creation with administrative approval.
-  variable_set(\'user_register\', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL);
 
   // Create a default vocabulary named "Tags", enabled for the \'article\' content type.
   $description = st(\'Use tags to group articles on similar topics into categories.\');
@@ -385,26 +499,15 @@ function '. $machine_name .'_install() {
     \'link_path\' => \'<front>\',
     \'menu_name\' => \'main-menu\',
   );
-  menu_link_save($item);
-  // revert features to ensure they are all installed
-  $features = array(
-    '. var_export($features) .'
-  );
-  features_revert($features);
+  menu_link_save($item);';
+  return $output;
+}
 
-  // From shortcut.install, add shortcuts to the default set on install
-  $shortcut_set = shortcut_set_load(SHORTCUT_DEFAULT_SET_NAME);
-  $shortcut_set->links = NULL;
-  $shortcut_set->links = array(
-    array(
-      \'link_path\' => \'admin/appearance/settings\', 
-      \'link_title\' => st(\'Theme\'), 
-      \'weight\' => -17,
-    ),
-  );
-  shortcut_set_save($shortcut_set);
-
-  // Create a default role for site administrators, with all available permissions assigned.
+/**
+ * Helper function to create an admin in the .install file.
+ */
+function _profiler_builder_create_admin() {
+  $output = '// Create a default role for site administrators, with all available permissions assigned.
   $admin_role = new stdClass();
   $admin_role->name = \'administrator\';
   $admin_role->weight = 10;
@@ -416,76 +519,6 @@ function '. $machine_name .'_install() {
   // Assign user 1 the "administrator" role.
   db_insert(\'users_roles\')
     ->fields(array(\'uid\' => 1, \'rid\' => $admin_role->rid))
-    ->execute();
-  // Update the menu router information.
-  menu_rebuild();
-  // ignore any rebuild messages
-  node_access_needs_rebuild(FALSE);
-  // ignore any other install messages
-  drupal_get_messages();
-}';
+    ->execute();';
   return $output;
-}
-
-/**
- * Helper function to create .info file
- */
-function _profiler_builder_info_file($name, $machine_name, $description, $exclusive) {
-  $active_core = PROIFLER_BUILDER_ACTIVE_CORE;
-  $output = "; Packaging information for $machine_name\n";
-  $output .= "name = \"$name\"\n";
-  $output .= "description = \"$description\"\n";
-  // if exclusive flag set, include it
-  if ($exclusive) {
-    $output .= "exclusive = \"$exclusive\"\n";
-  }
-  $output .= "core = \"$active_core.x\"\n";
-  return $output;
-}
-
-/**
- * Helper function to create .profile file
- */
-function _profiler_builder_profile_file($name, $machine_name) {
-  // assemble default output
-  $output = '<?php
-/**
- * Implements hook_form_FORM_ID_alter().
- *
- * Allows the profile to alter the site configuration form.
- */
-function system_form_install_configure_form_alter(&$form, $form_state) {
-  // Pre-populate the site name with the server name.
-  $form[\'site_information\'][\'site_name\'][\'#default_value\'] = \''. $name .'\';
-}
-/**
- * Implements hook_form_alter().
- */
-function system_form_install_select_profile_form_alter(&$form, $form_state) {
-  // select '. $machine_name .' install profile by default
-  foreach($form[\'profile\'] as $key => $element) {
-    $form[\'profile\'][$key][\'#value\'] = \''. $machine_name .'\';
-  }
-}';
-  return $output;
-}
-
-/**
- * Helper to make .make file.
- */
-function _profiler_builder_drush_file($file_contents, $name, $local) {
-  $active_core = PROIFLER_BUILDER_ACTIVE_CORE;
-  $output = "; $name make file\n";
-  $output .= "core = \"$active_core.x\"\n";
-  $output .= "api = \"2\"\n";
-  // change file based on local development or d.o.
-  if ($local) {
-    $output .= "; comment this out in to use on drupal.org\n";
-    $output .= "projects[drupal][version] = \"$active_core.x\"\n";
-  }
-  else {
-    $output .= "; comment this in to use in local development\n";
-    $output .= "; projects[drupal][version] = \"$active_core.x\"\n";
-  }
-  return $output . $file_contents;
 }
