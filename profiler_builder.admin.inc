@@ -471,8 +471,8 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
       foreach ($projects as $project => $version) {
         // if there's no version, add it to the end
         if (empty($version)) {
-          $no_version .= 'projects[' . $project . '][version] = "' . str_replace(PROIFLER_BUILDER_ACTIVE_CORE .'.x-', '', $version) . '"' . "\n";
-          $no_version .= 'projects[' . $project . '][subdir] = "custom"' . "\n";
+          $no_version .= "projects[$project][version] = \"\" ; TODO add version\n";
+          $no_version .= "projects[$project][subdir] = \"custom\"\n";
         }
         else {
           $version = str_replace(PROIFLER_BUILDER_ACTIVE_CORE .'.x-', '', $version);
@@ -480,14 +480,14 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
           if (strpos($version, '-dev')) {
             $version = substr($version, 0, (strpos($version, '.')+1)) . 'x-dev';
           }
-          $output .= 'projects[' . $project . '][version] = "' . $version . '"' . "\n";
-          $output .= 'projects[' . $project . '][subdir] = "contrib"' . "\n";
+          $output .= "projects[$project][version] = \"$version\"\n";
+          $output .= "projects[$project][subdir] = \"contrib\"\n";
         }
       }
     }
   }
   if ($no_version != '') {
-    $output .= "; -- Modules without versions -- \n". $no_version;
+    $output .= "; TODO modules without versions\n". $no_version;
   }
   // add all themes to drush file
   $output .= "\n; Themes\n";
@@ -510,9 +510,16 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
   // write themes to file
   foreach ($themes as $project_name => $version) {
     $output .= "; $project_name\n";
-    $output .= "projects[$project_name][version] = \"$version\"\n";
     $output .= "projects[$project_name][type] = \"theme\"\n";
-    $output .= "projects[$project_name][subdir] = \"contrib\"\n";
+    // account for custom themes
+    if (empty($version)) {
+      $output .= "projects[$project_name][version] = \"\"; TODO add version\n";
+      $output .= "projects[$project_name][subdir] = \"custom\"\n";
+    }
+    else {
+      $output .= "projects[$project_name][version] = \"$version\"\n";
+      $output .= "projects[$project_name][subdir] = \"contrib\"\n";
+    }
   }
   // add libraries
   $lib_output = '';
@@ -535,7 +542,7 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
   // convert to simplified checking for allowed patches
   foreach ($tmp as $key => $patch_info) {
     if (isset($patches[$patch_info->name])) {
-			$patch_project = '';
+      $patch_project = '';
       $path_ary = explode('/', $key);
       foreach($path_ary as $path_arg => $val) {
         // look for modules key in path, project name is next
@@ -543,10 +550,10 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
           $patch_project = $path_ary[($path_arg+1)];
         }
       }
-			// set to the key if not in an expected location
-			if (empty($patch_project)) {
-				$patch_project = $key;
-			}
+      // set to the key if not in an expected location
+      if (empty($patch_project)) {
+        $patch_project = $key;
+      }
       $active_patches[$patch_project] = $patch_info->filename;
     }
   }
@@ -566,9 +573,9 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
       $errors[] = 'associate patch to a project';
     }
     $patch_output .= "projects[$key][patch][] = \"$patch_path\"";
-    // if there were errors, add a todo message
+    // if there were errors, add a message
     if (count($errors) > 0) {
-      $patch_output .= '; TODO ' . implode(', ', $errors);
+      $patch_output .= ' ; TODO ' . implode(', ', $errors);
     }
     $patch_output .= "\n\n";
   }
