@@ -5,14 +5,14 @@
 function _profiler_builder_settings() {
   drupal_add_js(drupal_get_path('module', 'profiler_builder') . '/js/profiler_builder.js');
   $form = array();
-  $form['profile_details'] = array(
+  $form['profile_info'] = array(
     '#description' => t('Details of the installation profile to build'),
     '#collapsed' => FALSE,
     '#type' => 'fieldset',
     '#collapsible' => FALSE,
-    '#title' => t('Profile details'),
+    '#title' => t('Profile .info file'),
   );
-  $form['profile_details']['name'] = array(
+  $form['profile_info']['name'] = array(
     '#title' => t('Name'),
     '#description' => t('Example: Studio Machine') . ' (' . t('Do not begin name with numbers.') . ')',
     '#type' => 'textfield',
@@ -21,7 +21,7 @@ function _profiler_builder_settings() {
     '#required' => TRUE,
     '#default_value' => variable_get('site_name', ''),
   );
-  $form['profile_details']['profile_machine_name'] = array(
+  $form['profile_info']['profile_machine_name'] = array(
     '#type' => 'machine_name',
     '#maxlength' => 32,
     '#machine_name' => array(
@@ -30,25 +30,44 @@ function _profiler_builder_settings() {
     '#description' => t('Example: studio_machine') . '<br/>' . t('May only contain lowercase letters, numbers and underscores. <strong>Try to avoid conflicts with the names of existing Drupal projects.</strong>'),
     '#required' => TRUE,
   );
-  $form['profile_details']['description'] = array(
+  $form['profile_info']['description'] = array(
     '#title' => t('Description'),
     '#description' => t('Provide a short description of what users should expect when they use this profile.'),
     '#type' => 'textfield',
     '#default_value' => variable_get('site_slogan', ''),
   );
-  $form['profile_details']['exclusive'] = array(
+  $form['profile_info']['exclusive'] = array(
     '#title' => t('Exclusive'),
     '#description' => t('Treat this installation profile as exclusive? See the !url for more details about this setting.', array('!url' => l('related drupal.org discussion', 'http://drupal.org/node/1727430'))),
     '#type' => 'checkbox',
     '#default_value' => TRUE,
   );
-  $form['profile_details']['create_admin'] = array(
+  // allow for definitions of other things to export
+  $profiler_includes = _profiler_builder_get_includes();
+  foreach ($profiler_includes as $key => $include) {
+    $includes[$key] = $include['name'];
+  }
+  $form['profile_info']['profiler_includes'] = array(
+    '#title' => t('Profiler includes'),
+    '#description' => t('Items to include in the creation of the profiler .info file that are supported by the profiler module.'),
+    '#type' => 'checkboxes',
+    '#options' => $includes,
+    '#default_value' => array_keys($includes),
+  );
+  $form['profile_install'] = array(
+    '#description' => t('These operations get performed after all modules have been added'),
+    '#collapsed' => FALSE,
+    '#type' => 'fieldset',
+    '#collapsible' => FALSE,
+    '#title' => t('Post install clean up (.install)'),
+  );
+  $form['profile_install']['create_admin'] = array(
     '#title' => t('Create an admin role'),
     '#description' => t('This creates an administrator role during installation. This is recommended as per the standard install profile but disable it if you are handling roles via Features / Ctools exports.'),
     '#type' => 'checkbox',
     '#default_value' => TRUE,
   );
-  $form['profile_details']['standard_profile'] = array(
+  $form['profile_install']['standard_profile'] = array(
     '#title' => t('Create defaults like standard profile'),
     '#description' => t('This establishes the Page content type, RDF components, image field and associated taxonomy vocabulary Tags that were present in the "standard" drupal installation profile.'),
     '#type' => 'checkbox',
@@ -67,6 +86,49 @@ function _profiler_builder_settings() {
     '#type' => 'checkbox',
     '#default_value' => TRUE,
   );
+  // only list libraries capabilities if libraries module exists
+  if (module_exists('libraries')) {
+    // get all known libraries
+    $libraries = libraries_get_libraries();
+    // convert path locations to keys only
+    foreach($libraries as $key => $val) {
+      $libraries[$key] = $key;
+    }
+    $form['drush_details']['libraries'] = array(
+      '#title' => t('Libraries detected'),
+      '#description' => t('Deselect to not include the library in drush make'),
+      '#type' => 'checkboxes',
+      '#options' => $libraries,
+      '#multiple' => TRUE,
+      '#default_value' => $libraries,
+    );
+  }
+  // find .patch files in install
+  $tmp = _profiler_builder_get_patches();
+  // convert file array to patch array
+  foreach ($tmp as $key => $patch) {
+    $patch_project = '';
+    $path_ary = explode('/', $key);
+    foreach($path_ary as $path_arg => $val) {
+      // look for modules key in path, project name is next
+      if (($val == 'modules' || $val == 'themes' || $val == 'libraries') && isset($path_ary[($path_arg+1)]) && $path_ary[($path_arg+1)] != $patch->filename) {
+        $patch_project = $path_ary[($path_arg+1)];
+      }
+    }
+    // make sure project was found
+    if (empty($patch_project)) {
+      $patch_project = $key;
+    }
+    $patches[$patch->name] = $patch_project . ' - ' . $patch->filename;
+  }
+  $form['drush_details']['patches'] = array(
+    '#title' => t('Patches detected'),
+    '#description' => t('Deselect to not include the patch in drush make'),
+    '#type' => 'checkboxes',
+    '#options' => $patches,
+    '#default_value' => array_keys($patches),
+  );
+
   $form['buttons']['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Download profile'),
@@ -77,6 +139,17 @@ function _profiler_builder_settings() {
 }
 
 /**
+ * Helper to remove unchecked values.
+ */
+function _profiler_builder_unchecked_array(&$ary) {
+  foreach ($ary as $key => $val) {
+    // remove unchecked items
+    if ($val == '0') {
+      unset($ary[$key]);
+    }
+  }
+}
+/**
  * Form submission handler for profiler_builder_export_form().
  */
 function _profiler_builder_settings_form_submit($form, &$form_state) {
@@ -84,6 +157,22 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   $machine_name = $form_state['values']['profile_machine_name'];
   $description = $form_state['values']['description'];
   $exclusive = $form_state['values']['exclusive'];
+  $profiler_includes = $form_state['values']['profiler_includes'];
+  if (is_array($profiler_includes)) {
+    _profiler_builder_unchecked_array($profiler_includes);
+  }
+  // add libraries if libraries API is installed
+  if (isset($form_state['values']['libraries'])) {
+    $libraries = $form_state['values']['libraries'];
+    _profiler_builder_unchecked_array($libraries);
+  }
+  else {
+    $libraries = array();
+  }
+  $patches = $form_state['values']['patches'];
+  if (is_array($patches)) {
+    _profiler_builder_unchecked_array($patches);
+  }
   // check if we should use standard profile setup routine
   if ($form_state['values']['standard_profile']) {
     $standard_profile_default = _profiler_builder_standard_profile_default();
@@ -98,7 +187,26 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   else {
     $create_admin = '';
   }
-  
+  // assemble profiler components
+  $features = _profiler_builder_list_features();
+  // build initial info file
+  $info_file = _profiler_builder_info_file($name, $machine_name, $description, $exclusive);
+  // pull in all includes
+  $info_includes = _profiler_builder_get_includes();
+  // build each part of the info file
+  foreach ($info_includes as $key => $include) {
+    // only render to the file if checked in the form
+    if ($profiler_includes[$key]) {
+    $name = $include['name'];
+    // build include heading
+    $info_file .= "; ----------\n";
+    $info_file .= "; $name\n";
+    $info_file .= "; ----------\n";
+    // render information based on callback
+    $info_file .= call_user_func($include['callback']);
+    $info_file .= "\n";
+    }
+  }
   // drush setting for drupal.org distro or local
   $local_dev = $form_state['values']['local_dev'];
   if ($local_dev) {
@@ -107,16 +215,14 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   else {
     $drush_file_name = 'drupal-org.make';
   }
-  // assemble profiler components
-  $features = _profiler_builder_components($info, $vars, $drush);
-  // build initial info file
-  $info_header = _profiler_builder_info_file($name, $machine_name, $description, $exclusive);
+  // build drush file
+  $drush_file = _profiler_builder_drush_file($name, $local_dev, $libraries, $patches);
   // build files array
   $files = array(
-    $machine_name . '.info' => $info_header . $info . $vars,
+    $machine_name . '.info' => $info_file,
     $machine_name . '.install' => _profiler_builder_install_file($machine_name, array_keys($features), $standard_profile_default, $create_admin),
     $machine_name . '.profile' => _profiler_builder_profile_file($name, $machine_name),
-    $drush_file_name => _profiler_builder_drush_file($drush, $name, $local_dev),
+    $drush_file_name => $drush_file,
   );
   // Generate download file name
   $filename =  $machine_name . '.tar';
@@ -311,7 +417,7 @@ function system_form_install_select_profile_form_alter(&$form, $form_state) {
 /**
  * Helper to make .make file.
  */
-function _profiler_builder_drush_file($file_contents, $name, $local) {
+function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
   $active_core = PROIFLER_BUILDER_ACTIVE_CORE;
   $output = "; $name make file\n";
   $output .= "core = \"$active_core.x\"\n";
@@ -325,7 +431,151 @@ function _profiler_builder_drush_file($file_contents, $name, $local) {
     $output .= "; comment this in to use in local development\n";
     $output .= "; projects[drupal][version] = \"$active_core.x\"\n";
   }
-  return $output . $file_contents;
+  // add drush project includes
+  $system = array();
+  $project_data = array();
+  // build the array we need
+  $result = db_select('system', 's')
+  ->fields('s', array('status', 'type', 'name', 'info'))
+  ->condition('s.status', 1, '=')
+  ->condition('s.type', 'module', '=')
+  ->execute();
+  foreach ($result as $val) {
+    $system[$val->name] = unserialize($val->info);
+  }
+  // remove install profile as it lists as a module
+  if (isset($system[variable_get('install_profile', 'standard')])) {
+    unset($system[variable_get('install_profile', 'standard')]);
+  }
+  // build the make file project data with everything
+  foreach ($system as $module => $info) {
+    // build projects array to exclude sub-modules
+    if (isset($info['project'])) {
+      $project_data[$info['package']][$info['project']] = $info['version'];
+    }
+    else {
+      $project_data[$info['package']][$module] = $info['version'];
+    }
+  }
+  // alphabetical order of project data / packages
+  ksort($project_data);
+  foreach ($project_data as $key => $package) {
+    ksort($project_data[$key]);
+  }
+  // drush make file build via browser
+  $output .= "\n; Modules\n";
+  $no_version = '';
+  foreach ($project_data as $package => $projects) {
+    // skip core modules
+    if ($package != 'Core') {
+      foreach ($projects as $project => $version) {
+        // if there's no version, add it to the end
+        if (empty($version)) {
+          $no_version .= 'projects[' . $project . '][version] = "' . str_replace(PROIFLER_BUILDER_ACTIVE_CORE .'.x-', '', $version) . '"' . "\n";
+          $no_version .= 'projects[' . $project . '][subdir] = "custom"' . "\n";
+        }
+        else {
+          $version = str_replace(PROIFLER_BUILDER_ACTIVE_CORE .'.x-', '', $version);
+          // use true dev instead of specific build
+          if (strpos($version, '-dev')) {
+            $version = substr($version, 0, (strpos($version, '.')+1)) . 'x-dev';
+          }
+          $output .= 'projects[' . $project . '][version] = "' . $version . '"' . "\n";
+          $output .= 'projects[' . $project . '][subdir] = "contrib"' . "\n";
+        }
+      }
+    }
+  }
+  if ($no_version != '') {
+    $output .= "; -- Modules without versions -- \n". $no_version;
+  }
+  // add all themes to drush file
+  $output .= "\n; Themes\n";
+  $result = db_select('system', 's')
+  ->fields('s', array('info'))
+  ->condition('s.type', 'theme', '=')
+  ->orderBy('s.status', 'DESC')
+  ->orderBy('s.name')
+  ->execute();
+  $themes = array();
+  // add each theme regardless of active status
+  foreach ($result as $theme) {
+    $info = unserialize($theme->info);
+    // ignore core themes
+    if ($info['project'] != 'drupal') {
+      // ensures sub-themes don't get included
+      $themes[$info['project']] = $info['version'];
+    }
+  }
+  // write themes to file
+  foreach ($themes as $project_name => $version) {
+    $output .= "; $project_name\n";
+    $output .= "projects[$project_name][version] = \"$version\"\n";
+    $output .= "projects[$project_name][type] = \"theme\"\n";
+    $output .= "projects[$project_name][subdir] = \"contrib\"\n";
+  }
+  // add libraries
+  $lib_output = '';
+  foreach ($libraries as $key => $lib_name) {
+    $lib_output .= "libraries[$key][directory_name] = \"$key\"\n";
+    $lib_output .= "libraries[$key][type] = \"library\"\n";
+    $lib_output .= "libraries[$key][destination] = \"libraries\"\n";
+    $lib_output .= "libraries[$key][download][type] = \"get\"\n";
+    $lib_output .= "libraries[$key][download][url] = \"\" ; TODO add download URI\n\n";
+  }
+  // only add if there were libraries detected
+  if (!empty($lib_output)) {
+    $output .= "\n; Libraries\n" . $lib_output;
+  }
+  // add patches to end of file
+  $patch_output = '';
+  // list all patches again
+  $tmp = _profiler_builder_get_patches();
+  $active_patches = array();
+  // convert to simplified checking for allowed patches
+  foreach ($tmp as $key => $patch_info) {
+    if (isset($patches[$patch_info->name])) {
+			$patch_project = '';
+      $path_ary = explode('/', $key);
+      foreach($path_ary as $path_arg => $val) {
+        // look for modules key in path, project name is next
+        if (($val == 'modules' || $val == 'themes' || $val == 'libraries') && isset($path_ary[($path_arg+1)]) && $patch_info->filename != $path_ary[($path_arg+1)]) {
+          $patch_project = $path_ary[($path_arg+1)];
+        }
+      }
+			// set to the key if not in an expected location
+			if (empty($patch_project)) {
+				$patch_project = $key;
+			}
+      $active_patches[$patch_project] = $patch_info->filename;
+    }
+  }
+  foreach ($active_patches as $key => $patch_path) {
+    $errors = array();
+    // test if patch lives on d.o.
+    $request = drupal_http_request("http://drupal.org/files/$patch_path");
+    // patch not on d.o. add error message
+    if (isset($request->error)) {
+      $errors[] = 'add path to patch';
+    }
+    else {
+      $patch_path = "http://drupal.org/files/$patch_path";
+    }
+    // check if this key is not a project
+    if (strrpos($key, '/')) {
+      $errors[] = 'associate patch to a project';
+    }
+    $patch_output .= "projects[$key][patch][] = \"$patch_path\"";
+    // if there were errors, add a todo message
+    if (count($errors) > 0) {
+      $patch_output .= '; TODO ' . implode(', ', $errors);
+    }
+    $patch_output .= "\n\n";
+  }
+  if (!empty($patch_output)) {
+    $output .= "\n; Patches\n" . $patch_output;
+  }
+  return $output;
 }
 
 /**
@@ -521,4 +771,16 @@ function _profiler_builder_create_admin() {
     ->fields(array(\'uid\' => 1, \'rid\' => $admin_role->rid))
     ->execute();';
   return $output;
+}
+
+/**
+ * Helper function to find all patches in setup
+ */
+function _profiler_builder_get_patches() {
+  global $_SERVER;
+  // find server base path for this drupal instance
+  $dir = substr_replace($_SERVER['DOCUMENT_ROOT'] . base_path() , "", -1);
+  // look for patches
+  $files = file_scan_directory($dir, '/.*\.patch$/');
+  return $files;
 }

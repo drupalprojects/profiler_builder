@@ -30,4 +30,33 @@ function hook_profiler_builder_variables_alter(&$variables) {
     }
   }
 }
+
+/**
+ * Implements hook_profiler_builder_info_include().
+ *  key name needs to be unique
+ *  name is a human readable name for this component
+ *  callback is a function that will return text to place in the file
+ * Items added must be available through the profiler API
+ * If they aren't you can still add them but they won't do anything
+ */
+function hook_profiler_builder_info_include() {
+  $includes = array(
+    'keyname' => array(
+      'name' => t('Variables'),
+      'callback' => '_profiler_builder_export_variables',
+    ),
+    'modules' => array(
+      'name' => t('Dependencies'),
+      'callback' => '_profiler_builder_export_dependencies',
+    ),
+  );
+  return $includes;
+}
+
+/**
+ * Implements hook_profiler_builder_info_include_alter().
+ */
+function hook_profiler_builder_info_include(&$includes) {
+  $includes['modules']['callback'] = 'my_new_callback_to_handle_modules';
+}
 ?>
