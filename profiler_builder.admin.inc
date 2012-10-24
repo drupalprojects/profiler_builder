@@ -103,6 +103,7 @@ function _profiler_builder_settings() {
       '#default_value' => $libraries,
     );
   }
+  $patches = array();
   // find .patch files in install
   $tmp = _profiler_builder_get_patches();
   // convert file array to patch array
@@ -121,13 +122,16 @@ function _profiler_builder_settings() {
     }
     $patches[$patch->name] = $patch_project . ' - ' . $patch->filename;
   }
-  $form['drush_details']['patches'] = array(
-    '#title' => t('Patches detected'),
-    '#description' => t('Deselect to not include the patch in drush make'),
-    '#type' => 'checkboxes',
-    '#options' => $patches,
-    '#default_value' => array_keys($patches),
-  );
+  // no patches detected
+  if (count($patches) > 0) {
+    $form['drush_details']['patches'] = array(
+      '#title' => t('Patches detected'),
+      '#description' => t('Deselect to not include the patch in drush make'),
+      '#type' => 'checkboxes',
+      '#options' => $patches,
+      '#default_value' => array_keys($patches),
+    );
+  }
 
   $form['buttons']['submit'] = array(
     '#type' => 'submit',
@@ -169,7 +173,14 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   else {
     $libraries = array();
   }
-  $patches = $form_state['values']['patches'];
+  // add patches if any exist
+  if (isset($form_state['values']['patches'])) {
+    $patches = $form_state['values']['patches'];
+    _profiler_builder_unchecked_array($patches);
+  }
+  else {
+    $patches = array();
+  }
   if (is_array($patches)) {
     _profiler_builder_unchecked_array($patches);
   }
