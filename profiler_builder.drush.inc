@@ -128,26 +128,33 @@ function drush_profiler_builder_generate_distro($name) {
   }
   // files relevant to the build
   $drush_args = _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $libraries, $patches, $standard_profile_default, $create_admin);
+  $error = FALSE;
   // check for untar option
   if (drush_get_option('untar')) {
     // try to make the directory to place files in
     if (is_dir("profiles/$name") || mkdir("profiles/$name")) {
       // loop through files and add them to their location in the profile
-      drush_log($drush_args, 'ok');
       foreach ($drush_args['source_files'] as $file => $contents) {
         if (!file_put_contents("profiles/$name/$file", $contents)) {
           drush_log(dt("Unable to write file @file", array('@file' => $file)), 'error');
+          $error = TRUE;
         }
       }
     }
     else {
       drush_log(dt("Unable to write folder @folder into the profiles directory", array('@folder' => $name)), 'error');
+      $error = TRUE;
     }
   }
   elseif (file_put_contents($drush_args['tar_name'], $drush_args['tar'])) {
     drush_log(dt("Wrote .tar file @file to current directory", array('@file' => $drush_args['tar_name'])), 'ok');
+    $error = TRUE;
   }
   else {
     drush_log(dt("Unable to write @file to current directory", array('@file' => $drush_args['tar_name'])), 'error');
+    $error = TRUE;
+  }
+  if (!$error) {
+    drush_log(dt("Profile created successfully!"), 'ok');
   }
 }

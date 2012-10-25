@@ -362,6 +362,9 @@ function _profiler_builder_export_variables() {
  * Implements hook_profiler_builder_patch_locations().
  */
 function profiler_builder_profiler_builder_patch_locations() {
+  // find active site's configuration path
+  $conf = conf_path() . '/';
+  // define locations
   $locations = array(
     'includes',
     'misc',
@@ -369,7 +372,9 @@ function profiler_builder_profiler_builder_patch_locations() {
     'profiles',
     'scripts',
     'sites/all',
-    conf_path(),
+    $conf . 'modules',
+    $conf . 'themes',
+    $conf . 'libraries',
     'themes',
   );
   return $locations;

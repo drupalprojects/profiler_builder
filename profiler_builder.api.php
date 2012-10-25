@@ -77,7 +77,11 @@ function hook_profiler_builder_patch_locations() {
  * Implements hook_profiler_builder_patch_locations_alter().
  */
 function hook_profiler_builder_patch_locations_alter(&$locations) {
-  // don't scan profiles directory for patches
-  unset($locations['profiles']);
+  foreach ($locations as $key => $location) {
+    // don't scan profiles directory for patches
+    if ($location == 'profiles') {
+      unset($locations[$key]);
+    }
+  }
 }
 ?>
