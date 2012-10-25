@@ -198,7 +198,15 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   else {
     $create_admin = '';
   }
-  // assemble profiler components
+	// values have been set, now do the processing
+  _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $libraries, $patches, $standard_profile_default, $create_admin);
+}
+
+/**
+ * Helper to build a profile
+ */
+function _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $libraries, $patches, $standard_profile_default, $create_admin) {
+	// assemble profiler components
   $features = _profiler_builder_list_features();
   // build initial info file
   $info_file = _profiler_builder_info_file($name, $machine_name, $description, $exclusive);
@@ -208,10 +216,10 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   foreach ($info_includes as $key => $include) {
     // only render to the file if checked in the form
     if ($profiler_includes[$key]) {
-    $name = $include['name'];
+    $component_name = $include['name'];
     // build include heading
     $info_file .= "; ----------\n";
-    $info_file .= "; $name\n";
+    $info_file .= "; $component_name\n";
     $info_file .= "; ----------\n";
     // render information based on callback
     $info_file .= call_user_func($include['callback']);
@@ -241,18 +249,32 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   if (ob_get_level()) {
     ob_end_clean();
   }
-  // set headers for file download on submit
-  drupal_add_http_header('Content-type', 'application/x-tar');
-  drupal_add_http_header('Content-Disposition', 'attachment; filename="'. $filename .'"');
-  drupal_send_headers();
+  // set headers for file download on submit, accounting for drush
+	if (!function_exists('drush_main')) {
+		drupal_add_http_header('Content-type', 'application/x-tar');
+		drupal_add_http_header('Content-Disposition', 'attachment; filename="'. $filename .'"');
+		drupal_send_headers();
+	}
   // loop through file array and add to package
   foreach ($files as $file_name => $file_contents) {
     // write file to tar package
-    print profiler_builder_tar_create("{$machine_name}/{$file_name}", $file_contents);
+    $output .= profiler_builder_tar_create("{$machine_name}/{$file_name}", $file_contents);
   }
   // end tar file output
-  print pack("a1024","");
-  exit;
+  $output .= pack("a1024","");
+	if (!function_exists('drush_main')) {
+		print $output;
+    exit;
+	}
+	else {
+	  // drush is running, return values to drush to handle
+		$drush_args = array(
+			'tar' => $output,
+			'tar_name' => $filename,
+			'source_files' => $files,
+		);
+	  return $drush_args;
+	}
 }
 
 /**
@@ -798,6 +820,7 @@ function _profiler_builder_get_patches() {
   global $_SERVER;
   // find server base path for this drupal instance
   $dir = substr_replace($_SERVER['DOCUMENT_ROOT'] . base_path() , "", -1);
+	drush_log(base_path(), 'ok');
   // look for patches
   $files = file_scan_directory($dir, '/.*\.patch$/');
   return $files;
