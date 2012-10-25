@@ -357,3 +357,20 @@ function _profiler_builder_export_variables() {
   }
   return $output;
 }
+
+/**
+ * Implements hook_profiler_builder_patch_locations().
+ */
+function profiler_builder_profiler_builder_patch_locations() {
+  $locations = array(
+    'includes',
+    'misc',
+    'modules',
+    'profiles',
+    'scripts',
+    'sites/all',
+    conf_path(),
+    'themes',
+  );
+  return $locations;
+}
