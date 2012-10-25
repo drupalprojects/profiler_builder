@@ -59,4 +59,25 @@ function hook_profiler_builder_info_include() {
 function hook_profiler_builder_info_include(&$includes) {
   $includes['modules']['callback'] = 'my_new_callback_to_handle_modules';
 }
+
+/**
+ * Implements hook_profiler_builder_patch_locations().
+ */
+function hook_profiler_builder_patch_locations() {
+  $locations = array(
+    'includes',
+    'misc',
+    'modules',
+    'profiles',
+  );
+  return $locations;
+}
+
+/**
+ * Implements hook_profiler_builder_patch_locations_alter().
+ */
+function hook_profiler_builder_patch_locations_alter(&$locations) {
+  // don't scan profiles directory for patches
+  unset($locations['profiles']);
+}
 ?>
