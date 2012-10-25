@@ -1,4 +1,10 @@
 <?php
+
+/**
+ * @file
+ * Administrative form / function processing to make profile package
+ */
+
 /**
  * Implements hook_settings().
  */
@@ -38,7 +44,7 @@ function _profiler_builder_settings() {
   );
   $form['profile_info']['exclusive'] = array(
     '#title' => t('Exclusive'),
-    '#description' => t('Treat this installation profile as exclusive? See the !url for more details about this setting.', array('!url' => l('related drupal.org discussion', 'http://drupal.org/node/1727430'))),
+    '#description' => t('Treat this installation profile as exclusive? See the !url for more details about this setting.', array('!url' => l(t('related drupal.org discussion'), 'http://drupal.org/node/1727430'))),
     '#type' => 'checkbox',
     '#default_value' => TRUE,
   );
@@ -91,7 +97,7 @@ function _profiler_builder_settings() {
     // get all known libraries
     $libraries = libraries_get_libraries();
     // convert path locations to keys only
-    foreach($libraries as $key => $val) {
+    foreach ($libraries as $key => $val) {
       $libraries[$key] = $key;
     }
     $form['drush_details']['libraries'] = array(
@@ -110,7 +116,7 @@ function _profiler_builder_settings() {
   foreach ($tmp as $key => $patch) {
     $patch_project = '';
     $path_ary = explode('/', $key);
-    foreach($path_ary as $path_arg => $val) {
+    foreach ($path_ary as $path_arg => $val) {
       // look for modules key in path, project name is next
       if (($val == 'modules' || $val == 'themes' || $val == 'libraries') && isset($path_ary[($path_arg+1)]) && $path_ary[($path_arg+1)] != $patch->filename) {
         $patch_project = $path_ary[($path_arg+1)];
@@ -118,7 +124,32 @@ function _profiler_builder_settings() {
     }
     // make sure project was found
     if (empty($patch_project)) {
-      $patch_project = $key;
+      // test for possible core patches
+      $core_locations = array(
+        'includes',
+        'misc',
+        'modules',
+        'scripts',
+        'themes',
+      );
+      // search for core patch in core directories
+      foreach ($core_locations as $directory) {
+        $patch_found = array();
+        $patch_found = file_scan_directory('./' . $directory, '/.*\\' . $patch->filename . '$/');
+        // if we found something this is a core patch
+        if (!empty($patch_found)) {
+          $patch_project = 'drupal core';
+        }
+      }
+      // couldn't calculate accurately, set to key unless root
+      if (empty($patch_project)) {
+        if ($key == './' . $patch->filename) {
+          $patch_project = 'drupal core';
+        }
+        else {
+          $patch_project = $key;
+        }
+      }
     }
     $patches[$patch->name] = $patch_project . ' - ' . $patch->filename;
   }
@@ -162,6 +193,7 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   $description = $form_state['values']['description'];
   $exclusive = $form_state['values']['exclusive'];
   $profiler_includes = $form_state['values']['profiler_includes'];
+  $local_dev = $form_state['values']['local_dev'];
   if (is_array($profiler_includes)) {
     _profiler_builder_unchecked_array($profiler_includes);
   }
@@ -199,13 +231,13 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
     $create_admin = '';
   }
   // values have been set, now do the processing
-  _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $libraries, $patches, $standard_profile_default, $create_admin);
+  _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $local_dev, $standard_profile_default, $create_admin, $libraries, $patches);
 }
 
 /**
  * Helper to build a profile
  */
-function _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $libraries, $patches, $standard_profile_default, $create_admin) {
+function _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $local_dev, $standard_profile_default, $create_admin, $libraries, $patches) {
   // assemble profiler components
   $features = _profiler_builder_list_features();
   // build initial info file
@@ -227,7 +259,6 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
     }
   }
   // drush setting for drupal.org distro or local
-  $local_dev = $form_state['values']['local_dev'];
   if ($local_dev) {
     $drush_file_name = 'drush.make';
   }
@@ -252,7 +283,7 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
   // set headers for file download on submit, accounting for drush
   if (!function_exists('drush_main')) {
     drupal_add_http_header('Content-type', 'application/x-tar');
-    drupal_add_http_header('Content-Disposition', 'attachment; filename="'. $filename .'"');
+    drupal_add_http_header('Content-Disposition', 'attachment; filename="' . $filename . '"');
     drupal_send_headers();
   }
   // loop through file array and add to package
@@ -261,7 +292,7 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
     $output .= profiler_builder_tar_create("{$machine_name}/{$file_name}", $file_contents);
   }
   // end tar file output
-  $output .= pack("a1024","");
+  $output .= pack("a1024", "");
   if (!function_exists('drush_main')) {
     print $output;
     exit;
@@ -283,23 +314,23 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
 function _profiler_builder_install_file($machine_name, $features, $standard_profile_default, $create_admin) {
   $output = '<?php
   !function_exists(\'profiler_v2\') ? require_once(\'libraries/profiler/profiler.inc\') : FALSE;
-  profiler_v2(\''. $machine_name .'\');
+  profiler_v2(\'' . $machine_name . '\');
 
 /**
  * Implements hook_install().
  *
  * Perform actions to set up the site for this profile.
  */
-function '. $machine_name .'_install() {
-  // Enable some '. $machine_name .' blocks.
-  $default_theme = \''. variable_get('theme_default', 'bartik') .'\';
-  $admin_theme = \''. variable_get('admin_theme', 'seven') .'\';
+function ' . $machine_name . '_install() {
+  // Enable some ' . $machine_name . ' blocks.
+  $default_theme = \'' . variable_get('theme_default', 'bartik') . '\';
+  $admin_theme = \'' . variable_get('admin_theme', 'seven') . '\';
   // disable all themes
   db_update(\'system\')
     ->fields(array(\'status\' => 0))
     ->condition(\'type\', \'theme\')
     ->execute();
-  // enable $default_theme 
+  // enable $default_theme
   db_update(\'system\')
     ->fields(array(\'status\' => 1))
     ->condition(\'type\', \'theme\')
@@ -375,10 +406,10 @@ function '. $machine_name .'_install() {
     $query->values($block);
   }
   $query->execute();
-  '. $standard_profile_default .'
+  ' . $standard_profile_default . '
   // revert features to ensure they are all installed
   $features = array(
-    \''. implode("',\n    '", $features) .'\'
+    \'' . implode("',\n    '", $features) . '\'
   );
   features_revert($features);
 
@@ -387,13 +418,13 @@ function '. $machine_name .'_install() {
   $shortcut_set->links = NULL;
   $shortcut_set->links = array(
     array(
-      \'link_path\' => \'admin/appearance/settings\', 
-      \'link_title\' => st(\'Theme\'), 
+      \'link_path\' => \'admin/appearance/settings\',
+      \'link_title\' => st(\'Theme\'),
       \'weight\' => -17,
     ),
   );
   shortcut_set_save($shortcut_set);
-  '. $create_admin .'
+  ' . $create_admin . '
   // Update the menu router information.
   menu_rebuild();
   // ignore any rebuild messages
@@ -433,15 +464,15 @@ function _profiler_builder_profile_file($name, $machine_name) {
  */
 function system_form_install_configure_form_alter(&$form, $form_state) {
   // Pre-populate the site name with the server name.
-  $form[\'site_information\'][\'site_name\'][\'#default_value\'] = \''. $name .'\';
+  $form[\'site_information\'][\'site_name\'][\'#default_value\'] = \'' . $name . '\';
 }
 /**
  * Implements hook_form_alter().
  */
 function system_form_install_select_profile_form_alter(&$form, $form_state) {
-  // select '. $machine_name .' install profile by default
-  foreach($form[\'profile\'] as $key => $element) {
-    $form[\'profile\'][$key][\'#value\'] = \''. $machine_name .'\';
+  // select ' . $machine_name . ' install profile by default
+  foreach ($form[\'profile\'] as $key => $element) {
+    $form[\'profile\'][$key][\'#value\'] = \'' . $machine_name . '\';
   }
 }';
   return $output;
@@ -505,22 +536,22 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
         // if there's no version, add it to the end
         if (empty($version)) {
           $no_version .= "projects[$project][version] = \"\" ; TODO add version\n";
-          $no_version .= "projects[$project][subdir] = \"custom\"\n";
+          $no_version .= "projects[$project][subdir] = \"custom\"\n\n";
         }
         else {
-          $version = str_replace(PROIFLER_BUILDER_ACTIVE_CORE .'.x-', '', $version);
+          $version = str_replace(PROIFLER_BUILDER_ACTIVE_CORE . '.x-', '', $version);
           // use true dev instead of specific build
           if (strpos($version, '-dev')) {
-            $version = substr($version, 0, (strpos($version, '.')+1)) . 'x-dev';
+            $version = drupal_substr($version, 0, (strpos($version, '.')+1)) . 'x-dev';
           }
           $output .= "projects[$project][version] = \"$version\"\n";
-          $output .= "projects[$project][subdir] = \"contrib\"\n";
+          $output .= "projects[$project][subdir] = \"contrib\"\n\n";
         }
       }
     }
   }
   if ($no_version != '') {
-    $output .= "; TODO modules without versions\n". $no_version;
+    $output .= "; TODO modules without versions\n" . $no_version;
   }
   // add all themes to drush file
   $output .= "\n; Themes\n";
@@ -577,40 +608,69 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
     if (isset($patches[$patch_info->name])) {
       $patch_project = '';
       $path_ary = explode('/', $key);
-      foreach($path_ary as $path_arg => $val) {
+      foreach ($path_ary as $path_arg => $val) {
         // look for modules key in path, project name is next
         if (($val == 'modules' || $val == 'themes' || $val == 'libraries') && isset($path_ary[($path_arg+1)]) && $patch_info->filename != $path_ary[($path_arg+1)]) {
           $patch_project = $path_ary[($path_arg+1)];
         }
       }
-      // set to the key if not in an expected location
+      // make sure project was found
       if (empty($patch_project)) {
-        $patch_project = $key;
+        // test for possible core patches
+        $core_locations = array(
+          'includes',
+          'misc',
+          'modules',
+          'scripts',
+          'themes',
+        );
+        // search for core patch in core directories
+        foreach ($core_locations as $directory) {
+          $patch_found = array();
+          $patch_found = file_scan_directory('./' . $directory, '/.*\\' . $patch_info->filename . '$/');
+          // if we found something this is a core patch
+          if (!empty($patch_found)) {
+            $patch_project = 'drupal';
+          }
+        }
+        // couldn't calculate accurately, set to key unless root
+        if (empty($patch_project)) {
+          if ($key == './' . $patch_info->filename) {
+            $patch_project = 'drupal';
+          }
+          else {
+            $patch_project = $key;
+          }
+        }
       }
-      $active_patches[$patch_project] = $patch_info->filename;
+      // account for multiple patches by treating as arrays
+      $active_patches[$patch_project][] = $patch_info->filename;
     }
   }
-  foreach ($active_patches as $key => $patch_path) {
-    $errors = array();
-    // test if patch lives on d.o.
-    $request = drupal_http_request("http://drupal.org/files/$patch_path");
-    // patch not on d.o. add error message
-    if (isset($request->error)) {
-      $errors[] = 'add path to patch';
+  // render active patches to file
+  foreach ($active_patches as $key => $patch_ary) {
+    foreach ($patch_ary as $patch_path) {
+      $errors = array();
+      // test if patch lives on d.o.
+      $request = drupal_http_request("http://drupal.org/files/$patch_path");
+      // patch not on d.o. add error message
+      if (isset($request->error)) {
+        $errors[] = 'add path to patch';
+      }
+      else {
+        $patch_path = "http://drupal.org/files/$patch_path";
+      }
+      // check if this key is not a project
+      if (strrpos($key, '/')) {
+        $errors[] = 'associate patch to a project';
+      }
+      $patch_output .= "projects[$key][patch][] = \"$patch_path\"";
+      // if there were errors, add a message
+      if (count($errors) > 0) {
+        $patch_output .= ' ; TODO ' . implode(', ', $errors);
+      }
+      $patch_output .= "\n\n";
     }
-    else {
-      $patch_path = "http://drupal.org/files/$patch_path";
-    }
-    // check if this key is not a project
-    if (strrpos($key, '/')) {
-      $errors[] = 'associate patch to a project';
-    }
-    $patch_output .= "projects[$key][patch][] = \"$patch_path\"";
-    // if there were errors, add a message
-    if (count($errors) > 0) {
-      $patch_output .= ' ; TODO ' . implode(', ', $errors);
-    }
-    $patch_output .= "\n\n";
   }
   if (!empty($patch_output)) {
     $output .= "\n; Patches\n" . $patch_output;
@@ -718,7 +778,7 @@ function _profiler_builder_standard_profile_default() {
 
   // Create an image field named "Image", enabled for the \'article\' content type.
   // Many of the following values will be defaulted, they\'re included here as an illustrative examples.
-  // See http://api.drupal.org/api/function/field_create_field/'. PROIFLER_BUILDER_ACTIVE_CORE .'
+  // See http://api.drupal.org/api/function/field_create_field/' . PROIFLER_BUILDER_ACTIVE_CORE . '
 
   $field = array(
     \'field_name\' => \'field_image\',
@@ -737,9 +797,8 @@ function _profiler_builder_standard_profile_default() {
   );
   field_create_field($field);
 
-
   // Many of the following values will be defaulted, they\'re included here as an illustrative examples.
-  // See http://api.drupal.org/api/function/field_create_instance/'. PROIFLER_BUILDER_ACTIVE_CORE .'
+  // See http://api.drupal.org/api/function/field_create_instance/' . PROIFLER_BUILDER_ACTIVE_CORE . '
   $instance = array(
     \'field_name\' => \'field_image\',
     \'entity_type\' => \'node\',

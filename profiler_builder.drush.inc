@@ -17,17 +17,17 @@ function profiler_builder_drush_command() {
     'options' => array(
       'untar' => dt('Untar the tar package that profiler builder creates automatically.'),
     ),
-    'alias' => array('distro'),
+    'aliases' => array('distro'),
     'examples' => array(
       'drush generate-distro stuff' => 'Build an installation profile for creating a distribution called stuff.',
-      'drush generate-distro things --untar' => 'Build a distribution with installation profile things and untar the resulting directory',
+      'drush distro things --untar' => 'Build a distribution with installation profile things and untar the resulting directory',
     ),
   );
   return $items;
 }
 
 /**
- * Implementation of hook_drush_help().
+ * Implements hook_drush_help().
  */
 function profiler_builder_drush_help($section) {
   switch ($section) {
@@ -54,13 +54,13 @@ function drush_profiler_builder_generate_distro($name) {
   $build_array['profiler_includes'] = $includes;
   $build_array['create_admin'] = TRUE;
   $build_array['standard_profile'] = FALSE;
-  $build_array['local_dev'] = TRUE;
+  $local_dev = TRUE;
   // only list libraries capabilities if libraries module exists
   if (module_exists('libraries')) {
     // get all known libraries
     $libraries = libraries_get_libraries();
     // convert path locations to keys only
-    foreach($libraries as $key => $val) {
+    foreach ($libraries as $key => $val) {
       $libraries[$key] = $key;
     }
     $build_array['libraries'] = $libraries;
@@ -72,7 +72,7 @@ function drush_profiler_builder_generate_distro($name) {
   foreach ($tmp as $key => $patch) {
     $patch_project = '';
     $path_ary = explode('/', $key);
-    foreach($path_ary as $path_arg => $val) {
+    foreach ($path_ary as $path_arg => $val) {
       // look for modules key in path, project name is next
       if (($val == 'modules' || $val == 'themes' || $val == 'libraries') && isset($path_ary[($path_arg+1)]) && $path_ary[($path_arg+1)] != $patch->filename) {
         $patch_project = $path_ary[($path_arg+1)];
@@ -80,23 +80,43 @@ function drush_profiler_builder_generate_distro($name) {
     }
     // make sure project was found
     if (empty($patch_project)) {
-      $patch_project = $key;
+      // test for possible core patches
+      $core_locations = array(
+        'includes',
+        'misc',
+        'modules',
+        'scripts',
+        'themes',
+      );
+      // search for core patch in core directories
+      foreach ($core_locations as $directory) {
+        $patch_found = array();
+        $patch_found = file_scan_directory('./' . $directory, '/.*\\' . $patch->filename . '$/');
+        // if we found something this is a core patch
+        if (!empty($patch_found)) {
+          $patch_project = 'drupal';
+        }
+      }
+      // couldn't calculate accurately, set to key unless root
+      if (empty($patch_project)) {
+        if ($key == './' . $patch->filename) {
+          $patch_project = 'drupal';
+        }
+        else {
+          $patch_project = $key;
+        }
+      }
     }
-    $patches[$patch->name] = $patch_project . ' - ' . $patch->filename;
+    $patches[$patch->name] = $patch->filename;
   }
   // no patches detected
   if (count($patches) > 0) {
     $build_array['patches'] = $patches;
   }
-  
   $profiler_includes = $build_array['profiler_includes'];
-  if (is_array($profiler_includes)) {
-    _profiler_builder_unchecked_array($profiler_includes);
-  }
   // add libraries if libraries API is installed
   if (isset($build_array['libraries'])) {
     $libraries = $build_array['libraries'];
-    _profiler_builder_unchecked_array($libraries);
   }
   else {
     $libraries = array();
@@ -104,13 +124,9 @@ function drush_profiler_builder_generate_distro($name) {
   // add patches if any exist
   if (isset($build_array['patches'])) {
     $patches = $build_array['patches'];
-    _profiler_builder_unchecked_array($patches);
   }
   else {
     $patches = array();
-  }
-  if (is_array($patches)) {
-    _profiler_builder_unchecked_array($patches);
   }
   // check if we should use standard profile setup routine
   if ($build_array['standard_profile']) {
@@ -127,7 +143,7 @@ function drush_profiler_builder_generate_distro($name) {
     $create_admin = '';
   }
   // files relevant to the build
-  $drush_args = _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $libraries, $patches, $standard_profile_default, $create_admin);
+  $drush_args = _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $local_dev, $standard_profile_default, $create_admin, $libraries, $patches);
   $error = FALSE;
   // check for untar option
   if (drush_get_option('untar')) {
@@ -138,6 +154,33 @@ function drush_profiler_builder_generate_distro($name) {
         if (!file_put_contents("profiles/$name/$file", $contents)) {
           drush_log(dt("Unable to write file @file", array('@file' => $file)), 'error');
           $error = TRUE;
+        }
+      }
+      $mkdirs = array(
+        'libraries',
+        'modules',
+        'modules/custom',
+        'modules/contrib',
+        "modules/{$name}_features",
+        'themes',
+        'themes/custom',
+        'themes/contrib',
+      );
+      // loop through and make directories
+      foreach ($mkdirs as $dir) {
+        $dir_to_make = "profiles/$name/$dir";
+        if (!is_dir($dir_to_make)) {
+          if (!mkdir($dir_to_make)) {
+            drush_log(dt("Unable to write folder @folder into the profile directory, may already exist", array('@folder' => $dir_to_make)), 'warning');
+          }
+        }
+      }
+      // if profiler is in libraries, copy to new location
+      if (module_exists('libraries')) {
+        $libraries = libraries_get_libraries();
+        // copy profiler to correct location
+        if (isset($libraries['profiler'])) {
+          _profiler_builder_rcopy($libraries['profiler'], "profiles/$name/libraries/profiler");
         }
       }
     }
@@ -155,6 +198,24 @@ function drush_profiler_builder_generate_distro($name) {
     $error = TRUE;
   }
   if (!$error) {
-    drush_log(dt("Profile created successfully!"), 'ok');
+    drush_log(dt("Profile @folder created successfully!", array('@folder' => $name)), 'ok');
+  }
+}
+
+/**
+ * Recursively copy files and directories.
+ */
+function _profiler_builder_rcopy($source, $destination) {
+  if (is_dir($source)) {
+    mkdir($destination);
+    $files = scandir($source);
+    foreach ($files as $file) {
+      if ($file != "." && $file != "..") {
+        _profiler_builder_rcopy("$source/$file", "$destination/$file");
+      }
+    }
+  }
+  elseif (file_exists($source)) {
+    copy($source, $destination);
   }
 }

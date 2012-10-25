@@ -1,4 +1,10 @@
 <?php
+
+/**
+ * @file
+ * Profiler Builder API examples and documentation.
+ */
+
 /**
  * Implements hook_profiler_builder_modules_list_alter().
  */
@@ -84,4 +90,3 @@ function hook_profiler_builder_patch_locations_alter(&$locations) {
     }
   }
 }
-?>
