@@ -406,13 +406,19 @@ function ' . $machine_name . '_install() {
     $query->values($block);
   }
   $query->execute();
-  ' . $standard_profile_default . '
+  ' . $standard_profile_default;
+  // account for features being installed
+  if (module_exists('features')) {
+    $output .= '
   // revert features to ensure they are all installed
   $features = array(
     \'' . implode("',\n    '", $features) . '\'
   );
-  features_revert($features);
-
+  features_revert($features);';
+  }
+  // account for shortcut module being installed
+  if (module_exists('shortcut')) {
+    $output .= '
   // From shortcut.install, add shortcuts to the default set on install
   $shortcut_set = shortcut_set_load(SHORTCUT_DEFAULT_SET_NAME);
   $shortcut_set->links = NULL;
@@ -423,8 +429,9 @@ function ' . $machine_name . '_install() {
       \'weight\' => -17,
     ),
   );
-  shortcut_set_save($shortcut_set);
-  ' . $create_admin . '
+  shortcut_set_save($shortcut_set);';
+  }
+  $output .= $create_admin . '
   // Update the menu router information.
   menu_rebuild();
   // ignore any rebuild messages
@@ -585,11 +592,23 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
   // add libraries
   $lib_output = '';
   foreach ($libraries as $key => $lib_name) {
+    // always use profiler dev
+    if ($key == 'profiler') {
+      $dl_location = 'http://ftp.drupal.org/files/projects/profiler-7.x-2.x-dev.tar.gz';
+    }
+    else {
+      $dl_location = '';
+    }
     $lib_output .= "libraries[$key][directory_name] = \"$key\"\n";
     $lib_output .= "libraries[$key][type] = \"library\"\n";
     $lib_output .= "libraries[$key][destination] = \"libraries\"\n";
     $lib_output .= "libraries[$key][download][type] = \"get\"\n";
-    $lib_output .= "libraries[$key][download][url] = \"\" ; TODO add download URI\n\n";
+    $lib_output .= "libraries[$key][download][url] = \"$dl_location\"";
+		// account for empty dl locations
+		if (empty($dl_location)) {
+			$lib_output .= " ; TODO add download URI";
+		}
+		$lib_output .= "\n\n";
   }
   // only add if there were libraries detected
   if (!empty($lib_output)) {
