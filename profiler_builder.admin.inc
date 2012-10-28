@@ -539,11 +539,7 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
           $no_version .= "projects[$project][subdir] = \"custom\"\n\n";
         }
         else {
-          $version = str_replace(PROIFLER_BUILDER_ACTIVE_CORE . '.x-', '', $version);
-          // use true dev instead of specific build
-          if (strpos($version, '-dev')) {
-            $version = drupal_substr($version, 0, (strpos($version, '.')+1)) . 'x-dev';
-          }
+          $version = _profiler_builder_get_version($version);
           $output .= "projects[$project][version] = \"$version\"\n";
           $output .= "projects[$project][subdir] = \"contrib\"\n\n";
         }
@@ -581,6 +577,7 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
       $output .= "projects[$project_name][subdir] = \"custom\"\n";
     }
     else {
+      $version = _profiler_builder_get_version($version);
       $output .= "projects[$project_name][version] = \"$version\"\n";
       $output .= "projects[$project_name][subdir] = \"contrib\"\n";
     }

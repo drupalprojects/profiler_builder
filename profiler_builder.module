@@ -1,5 +1,6 @@
 <?php
 define('PROIFLER_BUILDER_ACTIVE_CORE', '7');
+define('PROFILER_BUILDER_TRUE_DEV', TRUE);
 /**
  * Implements hook_permission().
  */
@@ -378,4 +379,17 @@ function profiler_builder_profiler_builder_patch_locations() {
     'themes',
   );
   return $locations;
+}
+
+/**
+ * Helper function to convert version syntax.
+ */
+function _profiler_builder_get_version($version) {
+  // replace active core number
+  $version = str_replace(PROIFLER_BUILDER_ACTIVE_CORE . '.x-', '', $version);
+  // use true dev instead of specific build
+  if (PROFILER_BUILDER_TRUE_DEV && strpos($version, '-dev')) {
+    $version = drupal_substr($version, 0, (strpos($version, '.')+1)) . 'x-dev';
+  }
+  return $version;
 }
