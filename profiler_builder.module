@@ -154,6 +154,10 @@ function profiler_builder_profiler_builder_variables_alter(&$variables) {
  * Helper for retrieving info from system table.
  */
 function profiler_builder_get_info($name = 'standard') {
+  // check if name is current profile
+  if ($name == variable_get('install_profile', 'standard')) {
+    return FALSE;
+  }
   // return info about a single module / profile
   $result = db_select('system', 's')
     ->fields('s', array('name'))
