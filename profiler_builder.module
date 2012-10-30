@@ -136,6 +136,10 @@ function _profiler_builder_ignore_list() {
     'cache_flush_cache_path',
     'cache_flush_cache_views',
     'cache_flush_cache_views_data',
+    'ldap_authentication_conf',
+    'ldap_profile_conf',
+    'ldap_servers_encryption',
+    'ldap_servers_encrypt_key',
   );
   // allow modification via profiler_builder_ignore_alter
   drupal_alter('profiler_builder_ignore', $ignore_list);
