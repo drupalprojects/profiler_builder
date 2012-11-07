@@ -248,14 +248,14 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
   foreach ($info_includes as $key => $include) {
     // only render to the file if checked in the form
     if ($profiler_includes[$key]) {
-    $component_name = $include['name'];
-    // build include heading
-    $info_file .= "; ----------\n";
-    $info_file .= "; $component_name\n";
-    $info_file .= "; ----------\n";
-    // render information based on callback
-    $info_file .= call_user_func($include['callback']);
-    $info_file .= "\n";
+      $component_name = $include['name'];
+      // build include heading
+      $info_file .= "; ----------\n";
+      $info_file .= "; $component_name\n";
+      $info_file .= "; ----------\n";
+      // render information based on callback
+      $info_file .= call_user_func($include['callback']);
+      $info_file .= "\n";
     }
   }
   // drush setting for drupal.org distro or local
@@ -286,6 +286,7 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
     drupal_add_http_header('Content-Disposition', 'attachment; filename="' . $filename . '"');
     drupal_send_headers();
   }
+	$output = '';
   // loop through file array and add to package
   foreach ($files as $file_name => $file_contents) {
     // write file to tar package
@@ -569,7 +570,7 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
   foreach ($result as $theme) {
     $info = unserialize($theme->info);
     // ignore core themes
-    if ($info['project'] != 'drupal') {
+    if (isset($info['project']) && $info['project'] != 'drupal') {
       // ensures sub-themes don't get included
       $themes[$info['project']] = $info['version'];
     }
