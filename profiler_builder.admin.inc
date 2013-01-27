@@ -286,7 +286,7 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
     drupal_add_http_header('Content-Disposition', 'attachment; filename="' . $filename . '"');
     drupal_send_headers();
   }
-	$output = '';
+  $output = '';
   // loop through file array and add to package
   foreach ($files as $file_name => $file_contents) {
     // write file to tar package
@@ -605,11 +605,11 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
     $lib_output .= "libraries[$key][destination] = \"libraries\"\n";
     $lib_output .= "libraries[$key][download][type] = \"get\"\n";
     $lib_output .= "libraries[$key][download][url] = \"$dl_location\"";
-		// account for empty dl locations
-		if (empty($dl_location)) {
-			$lib_output .= " ; TODO add download URI";
-		}
-		$lib_output .= "\n\n";
+    // account for empty dl locations
+    if (empty($dl_location)) {
+      $lib_output .= " ; TODO add download URI";
+    }
+    $lib_output .= "\n\n";
   }
   // only add if there were libraries detected
   if (!empty($lib_output)) {
