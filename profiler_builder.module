@@ -384,12 +384,24 @@ function _profiler_builder_export_variables() {
           }
         }
         else {
-          $output .= 'variables[' . $var_name . '][' . $key . '] = ' . var_export($ary_val, TRUE) . "\n";
+          // ensure this isn't an object
+          if (is_object($ary_val)) {
+            drupal_set_message(t("The variable '@name' could not be evaluated. Please add it manually if it is needed.", array('@name' => $var_name . ' - ' . $key)), 'error');
+          }
+          else {
+            $output .= 'variables[' . $var_name . '][' . $key . '] = ' . var_export($ary_val, TRUE) . "\n";
+          }
         }
       }
     }
     else {
-      $output .= 'variables[' . $var_name . '] = ' . var_export($val, TRUE) . "\n";
+      // ensure this isn't an object
+      if (is_object($val)) {
+        drupal_set_message(t("The variable '@name' could not be evaluated. Please add it manually if it is needed.", array('@name' => $var_name)), 'error');
+      }
+      else {
+        $output .= 'variables[' . $var_name . '] = ' . var_export($val, TRUE) . "\n";
+      }
     }
   }
   return $output;
