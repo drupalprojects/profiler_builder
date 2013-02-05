@@ -32,40 +32,18 @@ function profiler_builder_menu() {
  * Callback to build out list of features to be reverted.
  */
 function _profiler_builder_list_features() {
-  $system = array();
-  $data = array();
-  $system_features = array();
-  // build the array we need
-  $result = db_select('system', 's')
-  ->fields('s', array('status', 'type', 'name', 'info'))
-  ->condition('s.status', 1, '=')
-  ->condition('s.type', 'module', '=')
-  ->execute();
-  foreach ($result as $val) {
-    $system[$val->name] = unserialize($val->info);
-  }
-  // remove install profile as it lists as a module
-  if (isset($system[variable_get('install_profile', 'standard')])) {
-    unset($system[variable_get('install_profile', 'standard')]);
-  }
+  $features = array();
+  // load all known features from system table
+  $system_features = features_get_features();
   // allow modification to module build list
   drupal_alter('profiler_builder_modules_list', $system);
-  // convert data
-  foreach ($system as $module => $info) {
-    //account for the other package in module listing
-    if (!isset($info['package'])) {
-      $info['package'] = 'Other';
+  // only grab those features that are enabled
+  foreach ($system_features as $feature => $info) {
+    if ($info->status) {
+      $features[$feature] = $feature;
     }
-    $data[$info['package']][$module] = $info['version'];
   }
-  // move features to the end if set to avoid conflicts
-  if (isset($data['Features'])) {
-    $system_features = $data['Features'];
-    // features module can't be reverted
-    unset($system_features['features']);
-  }
-  // return features if found
-  return $system_features;
+  return $features;
 }
 
 /**
