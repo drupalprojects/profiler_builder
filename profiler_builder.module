@@ -116,6 +116,23 @@ function _profiler_builder_ignore_list() {
     'ldap_profile_conf',
     'ldap_servers_encryption',
     'ldap_servers_encrypt_key',
+    'user_mail_cancel_confirm_body',
+    'user_mail_cancel_confirm_subject',
+    'user_mail_password_reset_body',
+    'user_mail_password_reset_subject',
+    'user_mail_register_admin_created_body',
+    'user_mail_register_admin_created_subject',
+    'user_mail_register_no_approval_required_body',
+    'user_mail_register_no_approval_required_subject',
+    'user_mail_register_pending_approval_body',
+    'user_mail_register_pending_approval_subject',
+    'user_mail_status_activated_body',
+    'user_mail_status_activated_notify',
+    'user_mail_status_activated_subject',
+    'user_mail_status_blocked_body',
+    'user_mail_status_blocked_subject',
+    'user_mail_status_canceled_body',
+    'user_mail_status_canceled_subject',
   );
   // allow modification via profiler_builder_ignore_alter
   drupal_alter('profiler_builder_ignore', $ignore_list);
