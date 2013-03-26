@@ -522,7 +522,9 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
   $active_core = PROIFLER_BUILDER_ACTIVE_CORE;
   if ($local) {
     $output = "; $machine_name make file for local development\n";
-    $output .= "projects[drupal][version] = \"$active_core.x\"\n\n";
+    $output .= "projects[drupal][version] = \"$active_core.x\"\n";
+    $output .= "; include the d.o. profile base\n";
+    $output .= '"includes[] = "drupal-org.make"'."\n\n";
   }
   else {
     $output = "; $machine_name make file for d.o. usage\n";
