@@ -54,7 +54,6 @@ function drush_profiler_builder_generate_distro($name) {
   $build_array['profiler_includes'] = $includes;
   $build_array['create_admin'] = TRUE;
   $build_array['standard_profile'] = FALSE;
-  $local_dev = TRUE;
   // only list libraries capabilities if libraries module exists
   if (module_exists('libraries')) {
     // get all known libraries
@@ -143,7 +142,7 @@ function drush_profiler_builder_generate_distro($name) {
     $create_admin = '';
   }
   // files relevant to the build
-  $drush_args = _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $local_dev, $standard_profile_default, $create_admin, $libraries, $patches);
+  $drush_args = _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches);
   $error = FALSE;
   // check for untar option
   if (drush_get_option('untar')) {
@@ -178,7 +177,7 @@ function drush_profiler_builder_generate_distro($name) {
       // if profiler is in libraries, copy to new location
       if (module_exists('libraries')) {
         $libraries = libraries_get_libraries();
-        // copy profiler to correct location
+        // copy profiler to correct location if it is set
         if (isset($libraries['profiler'])) {
           _profiler_builder_rcopy($libraries['profiler'], "profiles/$name/libraries/profiler");
         }
