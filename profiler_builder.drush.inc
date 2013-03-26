@@ -46,10 +46,15 @@ function drush_profiler_builder_generate_distro($name) {
   $machine_name = $name;
   $description = variable_get('site_slogan', $name);
   $exclusive = TRUE;
+  $profiler = TRUE;
   // allow for definitions of other things to export
   $profiler_includes = _profiler_builder_get_includes();
   foreach ($profiler_includes as $key => $include) {
     $includes[$key] = $include['name'];
+  }
+  // unset variables, relying on features distro packaging these
+  if (isset($includes['variables'])) {
+    unset($includes['variables']);
   }
   $build_array['profiler_includes'] = $includes;
   $build_array['create_admin'] = TRUE;
@@ -142,7 +147,7 @@ function drush_profiler_builder_generate_distro($name) {
     $create_admin = '';
   }
   // files relevant to the build
-  $drush_args = _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches);
+  $drush_args = _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches);
   $error = FALSE;
   // check for untar option
   if (drush_get_option('untar')) {
