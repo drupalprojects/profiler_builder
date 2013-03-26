@@ -1,6 +1,9 @@
 <?php
 define('PROIFLER_BUILDER_ACTIVE_CORE', '7');
+define('PROIFLER_BUILDER_ACTIVE_BRANCH', '1');
+define('PROIFLER_BUILDER_DISTRO_BRANCH', '1');
 define('PROFILER_BUILDER_TRUE_DEV', TRUE);
+
 /**
  * Implements hook_permission().
  */
@@ -160,6 +163,17 @@ function profiler_builder_profiler_builder_modules_list_alter(&$modules) {
 }
 
 /**
+ * Implements hook_profiler_builder_drush_modules_list_alter().
+ */
+function profiler_builder_profiler_builder_drush_modules_list_alter(&$project_data, $machine_name) {
+  // stop core modules from being added to the drush export file
+  unset($project_data['Core']);
+  // remove all modules listed as part of the distribution itself
+  // check both cases as they are common locations for these modules
+  unset($project_data[$machine_name]);
+  unset($project_data[drupal_strtoupper($machine_name)]);
+}
+/**
  * Implements hook_profiler_builder_variables_alter().
  */
 function profiler_builder_profiler_builder_variables_alter(&$variables) {
@@ -298,11 +312,16 @@ function _profiler_builder_export_dependencies() {
   }
   // allow modification to module build list
   drupal_alter('profiler_builder_modules_list', $system);
+  $feature_list = _profiler_builder_list_features();
   // convert data
   foreach ($system as $module => $info) {
     //account for the other package in module listing
     if (!isset($info['package'])) {
       $info['package'] = 'Other';
+    }
+    // make sure non Features package items appear in Features package
+    if (in_array($module, $feature_list)) {
+      $info['package'] = 'Features';
     }
     $data[$info['package']][$module] = $info['version'];
   }
@@ -433,4 +452,116 @@ function _profiler_builder_get_version($version) {
     $version = drupal_substr($version, 0, (strpos($version, '.')+1)) . 'x-dev';
   }
   return $version;
+}
+
+/**
+ * Implements hook_profiler_builder_libraries_list_alter().
+ */
+function profiler_builder_profiler_builder_libraries_list_alter(&$libraries, $local, $machine_name) {
+  // define known ahead of time to simplify logic below
+  $defined_libs = module_invoke_all('profiler_builder_defined_libraries');
+  // allow other projects to do custom overriding of each other
+  drupal_alter('profiler_builder_defined_libraries', $defined_libs);
+  // local file build vs d.o. file pattern
+  switch ($local) {
+    // this is the case for the d.o. patterned file
+    case FALSE:
+      // loop through defined keys to match those passed to us for updating
+      foreach (array_keys($defined_libs) as $lib) {
+        // we only want to set the library in the original array if it was selected
+        if (isset($libraries[$lib])) {
+          // check for local only flag, this means it hasn't passed d.o. packaging white-list
+          if (!isset($defined_libs[$lib]['_local'])) {
+            $libraries[$lib] = $defined_libs[$lib];
+          }
+          else {
+            unset($libraries[$lib]);
+          }
+        }
+      }
+    break;
+    // this is the case for local development
+    case TRUE:
+      // loop through defined keys to match those passed to us for updating
+      foreach (array_keys($defined_libs) as $lib) {
+        // we only want to set the library in the original array if it was selected
+        if (isset($libraries[$lib])) {
+          // we only want to write local this time except profiler if available
+          if (isset($defined_libs[$lib]['_local'])) {
+            $libraries[$lib] = $defined_libs[$lib];
+          }
+          else {
+            // special case of profiler in local development
+            if ($lib == 'profiler') {
+              $libraries[$lib] = $defined_libs[$lib];
+              // this ensures profiler goes to the right place in local development
+              $libraries['profiler']['destination'] = "../../profiles/$machine_name/libraries";
+            }
+            else {
+              unset($libraries[$lib]);
+            }
+          }
+        }
+      }
+      // special case for local development of a d.o. hosted install profile
+      // test that it exists on d.o.
+      $request = drupal_http_request("http://drupal.org/project/$machine_name", array('timeout' => 10));
+      // if it is on d.o. and we are developing locally, add library
+      if (!isset($request->error)) {
+        $libraries[$machine_name]['directory_name'] = $machine_name;
+        $libraries[$machine_name]['type'] = "profile";
+        $libraries[$machine_name]['destination'] = "../../profiles";
+        // this assumes active core is defined in the globals above to match
+        // this is usually the case but eventually could not be
+        // you may need to implement your own download_url alter hook for local dev
+        // if your project has multiple branches
+        $libraries[$machine_name]['download_url'] = "http://ftp.drupal.org/files/projects/$machine_name-" . PROIFLER_BUILDER_ACTIVE_CORE . ".x-" . PROIFLER_BUILDER_DISTRO_BRANCH . ".x-dev.tar.gz";
+      }
+    break;
+  }
+}
+
+/**
+ * Implements hook_profiler_builder_defined_libraries().
+ */
+function profiler_builder_profiler_builder_defined_libraries() {
+  $defined_libs = array();
+  // ckeditor, popular wysiwyg engine
+  $defined_libs['ckeditor']['_name'] = t('CKEditor');
+  $defined_libs['ckeditor']['download_url'] = "http://download.cksource.com/CKEditor/CKEditor/CKEditor%203.6.6.1/ckeditor_3.6.6.1.tar.gz";
+  // used in jquery colorpicker widgets
+  $defined_libs['colorpicker']['_name'] = t('jQuery Colorpicker');
+  $defined_libs['colorpicker']['download_url'] = "http://www.eyecon.ro/colorpicker/colorpicker.zip";
+  // flexslider for jquery based image galleries
+  $defined_libs['flexslider']['_name'] = t('Flexslider');
+  $defined_libs['flexslider']['download_url'] = "https://github.com/woothemes/FlexSlider/archive/flexslider1.zip";
+  // profiler which profiler builder gets its name from
+  $defined_libs['profiler']['_name'] = t('Profiler');
+  $defined_libs['profiler']['download_url'] = "http://ftp.drupal.org/files/projects/profiler-" . PROIFLER_BUILDER_ACTIVE_CORE . ".x-2.x-dev.tar.gz";
+  // plupload multiple file drag and drop uploads
+  $defined_libs['plupload']['_name'] = t('Plupload');
+  $defined_libs['plupload']['download_type'] = "file";
+  $defined_libs['plupload']['download_url'] = "http://plupload.com/downloads/plupload_1_5_6.zip";
+  $defined_libs['plupload']['patch'][] = "http://drupal.org/files/plupload-1_5_6-rm_examples-1903850-5.patch";
+  // colorbox / lightbox style plugin
+  $defined_libs['colorbox']['_name'] = t('ColorBox');
+  $defined_libs['colorbox']['download_url'] = "http://colorpowered.com/colorbox/colorbox.zip";
+  // twitter bootstrap jquery / css libraries
+  $defined_libs['bootstrap']['_name'] = t('Twitter Bootstrap');
+  $defined_libs['bootstrap']['_local'] = TRUE;
+  $defined_libs['bootstrap']['destination'] = "themes/contrib/bootstrap";
+  $defined_libs['bootstrap']['download_url'] = "http://twitter.github.com/bootstrap/assets/bootstrap.zip";
+  // masonry hasn't cleared yet but will soon
+  $defined_libs['masonry']['_name'] = t('jQuery Masonry');
+  $defined_libs['masonry']['_local'] = TRUE;
+  $defined_libs['masonry']['download_url'] = "http://masonry.desandro.com/jquery.masonry.min.js";
+  // current license debate, this has not passed yet
+  $defined_libs['fitvids']['_name'] = t('FitVids');
+  $defined_libs['fitvids']['_local'] = TRUE;
+  $defined_libs['fitvids']['download_url'] = "https://raw.github.com/davatron5000/FitVids.js/master/jquery.fitvids.js";
+  // oauth hasn't cleared packaging script but will soon
+  $defined_libs['oauth']['_name'] = t('OAuth Drupal fork');
+  $defined_libs['oauth']['_local'] = TRUE;
+  $defined_libs['oauth']['download_url'] = "https://github.com/juampy72/OAuth-PHP/archive/master.zip";
+  return $defined_libs;
 }
