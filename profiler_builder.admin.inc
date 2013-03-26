@@ -522,9 +522,11 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
   $active_core = PROIFLER_BUILDER_ACTIVE_CORE;
   if ($local) {
     $output = "; $machine_name make file for local development\n";
+    $output .= "core = \"$active_core.x\"\n";
+    $output .= "api = \"2\"\n\n";
     $output .= "projects[drupal][version] = \"$active_core.x\"\n";
     $output .= "; include the d.o. profile base\n";
-    $output .= '"includes[] = "drupal-org.make"'."\n\n";
+    $output .= 'includes[] = "drupal-org.make"'."\n\n";
   }
   else {
     $output = "; $machine_name make file for d.o. usage\n";
@@ -566,6 +568,7 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
   drupal_alter('profiler_builder_drush_modules_list', $project_data, $machine_name);
   // drush make file build via browser
   $no_version = '';
+  $module_output = '';
   foreach ($project_data as $package => $projects) {
     foreach ($projects as $project => $version) {
       // if there's no version, add it to the end
@@ -771,30 +774,32 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
   }
   // render active patches to file
   foreach ($active_patches as $key => $patch_ary) {
-    foreach ($patch_ary as $patch_path) {
-      $errors = array();
-      $external_patch = FALSE;
-      // test if patch lives on d.o.
-      $request = drupal_http_request("http://drupal.org/files/$patch_path", array('timeout' => 10));
-      // patch not on d.o. add error message
-      if (isset($request->error)) {
-        $errors[] = 'add path to patch';
-        $external_patch = TRUE;
-      }
-      else {
-        $patch_path = "http://drupal.org/files/$patch_path";
-      }
-      // check if this key is not a project
-      if (strrpos($key, '/')) {
-        $errors[] = 'associate patch to a project';
-      }
-      if (($local && $external_patch) || (!$local && !$external_patch)) {
-        $patch_output .= "projects[$key][patch][] = \"$patch_path\"";
-        // if there were errors, add a message
-        if (count($errors) > 0) {
-          $patch_output .= ' ; TODO ' . implode(', ', $errors);
+    if (in_array($key, array_keys($system))) {
+      foreach ($patch_ary as $patch_path) {
+        $errors = array();
+        $external_patch = FALSE;
+        // test if patch lives on d.o.
+        $request = drupal_http_request("http://drupal.org/files/$patch_path", array('timeout' => 10));
+        // patch not on d.o. add error message
+        if (isset($request->error)) {
+          $errors[] = 'add path to patch';
+          $external_patch = TRUE;
         }
-        $patch_output .= "\n\n";
+        else {
+          $patch_path = "http://drupal.org/files/$patch_path";
+        }
+        // check if this key is not a project
+        if (strrpos($key, '/')) {
+          $errors[] = 'associate patch to a project';
+        }
+        if (($local && $external_patch) || (!$local && !$external_patch)) {
+          $patch_output .= "projects[$key][patch][] = \"$patch_path\"";
+          // if there were errors, add a message
+          if (count($errors) > 0) {
+            $patch_output .= ' ; TODO ' . implode(', ', $errors);
+          }
+          $patch_output .= "\n\n";
+        }
       }
     }
   }
