@@ -60,6 +60,13 @@ function _profiler_builder_settings() {
     '#options' => $includes,
     '#default_value' => array_keys($includes),
   );
+  // deselect variable packaging if included, this is a fallback default
+  if (isset($includes['variables'])) {
+    $pos = array_search('variables', $form['profile_info']['profiler_includes']['#default_value']);
+    if ($pos) {
+      unset($form['profile_info']['profiler_includes']['#default_value'][$pos]);
+    }
+  }
   $form['profile_install'] = array(
     '#description' => t('These operations get performed after all modules have been added'),
     '#collapsed' => FALSE,
@@ -75,7 +82,7 @@ function _profiler_builder_settings() {
   );
   $form['profile_install']['standard_profile'] = array(
     '#title' => t('Create defaults like standard profile'),
-    '#description' => t('This establishes the Page content type, RDF components, image field and associated taxonomy vocabulary Tags that were present in the "standard" drupal installation profile.'),
+    '#description' => t('This establishes the Page content type, RDF components, image field and associated taxonomy vocabulary Tags that were present in the "standard" drupal installation profile. menu, rdf, taxonomy, field, and image modules are required for this to work.'),
     '#type' => 'checkbox',
     '#default_value' => FALSE,
   );
@@ -85,12 +92,6 @@ function _profiler_builder_settings() {
     '#type' => 'fieldset',
     '#collapsible' => FALSE,
     '#title' => t('Drush make details'),
-  );
-  $form['drush_details']['local_dev'] = array(
-    '#title' => t('Make file for local development'),
-    '#description' => t('Check to build for local development, otherwise it will use the drupal.org distribution packaging format (minor difference).'),
-    '#type' => 'checkbox',
-    '#default_value' => TRUE,
   );
   // only list libraries capabilities if libraries module exists
   if (module_exists('libraries')) {
@@ -193,7 +194,6 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   $description = $form_state['values']['description'];
   $exclusive = $form_state['values']['exclusive'];
   $profiler_includes = $form_state['values']['profiler_includes'];
-  $local_dev = $form_state['values']['local_dev'];
   if (is_array($profiler_includes)) {
     _profiler_builder_unchecked_array($profiler_includes);
   }
@@ -231,13 +231,13 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
     $create_admin = '';
   }
   // values have been set, now do the processing
-  _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $local_dev, $standard_profile_default, $create_admin, $libraries, $patches);
+  _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches);
 }
 
 /**
  * Helper to build a profile
  */
-function _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $local_dev, $standard_profile_default, $create_admin, $libraries, $patches) {
+function _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches) {
   // assemble profiler components
   $features = _profiler_builder_list_features();
   // build initial info file
@@ -247,7 +247,7 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
   // build each part of the info file
   foreach ($info_includes as $key => $include) {
     // only render to the file if checked in the form
-    if ($profiler_includes[$key]) {
+    if (isset($profiler_includes[$key]) && $profiler_includes[$key]) {
       $component_name = $include['name'];
       // build include heading
       $info_file .= "; ----------\n";
@@ -258,21 +258,22 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
       $info_file .= "\n";
     }
   }
-  // drush setting for drupal.org distro or local
-  if ($local_dev) {
-    $drush_file_name = 'drush.make';
-  }
-  else {
-    $drush_file_name = 'drupal-org.make';
-  }
+  // drush setting for drupal.org distro
+  $drush_file_name = 'drupal-org.make';
+  // name helps avoid conflicts w/ drush spidering .make
+  $local_file_name = 'local.make.example';
   // build drush file
-  $drush_file = _profiler_builder_drush_file($name, $local_dev, $libraries, $patches);
+  $drush_file = _profiler_builder_drush_file($machine_name, FALSE, $libraries, $patches);
+  // build sub-file for local dev
+  $local_file = _profiler_builder_drush_file($machine_name, TRUE, $libraries, $patches);
+  
   // build files array
   $files = array(
     $machine_name . '.info' => $info_file,
     $machine_name . '.install' => _profiler_builder_install_file($machine_name, array_keys($features), $standard_profile_default, $create_admin),
     $machine_name . '.profile' => _profiler_builder_profile_file($name, $machine_name),
     $drush_file_name => $drush_file,
+    $local_file_name => $local_file,
   );
   // Generate download file name
   $filename =  $machine_name . '.tar';
@@ -408,15 +409,6 @@ function ' . $machine_name . '_install() {
   }
   $query->execute();
   ' . $standard_profile_default;
-  // account for features being installed
-  if (module_exists('features')) {
-    $output .= '
-  // revert features to ensure they are all installed
-  $features = array(
-    \'' . implode("',\n    '", $features) . '\'
-  );
-  features_revert($features);';
-  }
   // account for shortcut module being installed
   if (module_exists('shortcut')) {
     $output .= '
@@ -434,7 +426,17 @@ function ' . $machine_name . '_install() {
   }
   $output .= $create_admin . '
   // Update the menu router information.
-  menu_rebuild();
+  menu_rebuild();';
+  // account for features being installed
+  if (module_exists('features')) {
+    $output .= '
+  // revert features to ensure they are all installed
+  $features = array(
+    \'' . implode("',\n    '", $features) . '\'
+  );
+  features_revert($features);';
+  }
+  $output .= '
   // ignore any rebuild messages
   node_access_needs_rebuild(FALSE);
   // ignore any other install messages
@@ -494,19 +496,16 @@ if (!function_exists("system_form_install_select_profile_form_alter")) {
 /**
  * Helper to make .make file.
  */
-function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
+function _profiler_builder_drush_file($machine_name, $local, $libraries, $patches) {
   $active_core = PROIFLER_BUILDER_ACTIVE_CORE;
-  $output = "; $name make file\n";
-  $output .= "core = \"$active_core.x\"\n";
-  $output .= "api = \"2\"\n";
-  // change file based on local development or d.o.
   if ($local) {
-    $output .= "; comment this out in to use on drupal.org\n";
-    $output .= "projects[drupal][version] = \"$active_core.x\"\n";
+    $output = "; $machine_name make file for local development\n";
+    $output .= "projects[drupal][version] = \"$active_core.x\"\n\n";
   }
   else {
-    $output .= "; comment this in to use in local development\n";
-    $output .= "; projects[drupal][version] = \"$active_core.x\"\n";
+    $output = "; $machine_name make file for d.o. usage\n";
+    $output .= "core = \"$active_core.x\"\n";
+    $output .= "api = \"2\"\n\n";
   }
   // add drush project includes
   $system = array();
@@ -539,31 +538,52 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
   foreach ($project_data as $key => $package) {
     ksort($project_data[$key]);
   }
+  // allow for modification of this list
+  drupal_alter('profiler_builder_drush_modules_list', $project_data, $machine_name);
   // drush make file build via browser
-  $output .= "\n; Modules\n";
   $no_version = '';
   foreach ($project_data as $package => $projects) {
-    // skip core modules
-    if ($package != 'Core') {
-      foreach ($projects as $project => $version) {
-        // if there's no version, add it to the end
-        if (empty($version)) {
-          $no_version .= "projects[$project][version] = \"\" ; TODO add version\n";
-          $no_version .= "projects[$project][subdir] = \"custom\"\n\n";
+    foreach ($projects as $project => $version) {
+      // if there's no version, add it to the end
+      if (empty($version)) {
+        // we don't want to include version-less items in d.o. packaging
+        // this is unless they have a project page
+        $request = drupal_http_request("http://drupal.org/project/$project", array('timeout' => 10));
+        // project not on d.o, put this in the local file only
+        if (isset($request->error)) {
+          // we got an error, this isn't a d.o. project, add it to the local file
+          if ($local) {
+            $no_version .= "projects[$project][version] = \"\" ; TODO add version\n";
+            $no_version .= "projects[$project][subdir] = \"custom\"\n\n";
+          }
         }
         else {
+          // we found a d.o. project page response, add to non-local file
+          if (!$local) {
+            $no_version .= "projects[$project][version] = \"\" ; TODO add version\n";
+            $no_version .= "projects[$project][subdir] = \"contrib\"\n\n";
+          }
+        }
+      }
+      else {
+        // TODO: this is a poor assumption, fservers exist
+        // need way of determining that this is a d.o. version
+        // guess is better then nothing but could cause packaging errors
+        if (!$local) {
           $version = _profiler_builder_get_version($version);
-          $output .= "projects[$project][version] = \"$version\"\n";
-          $output .= "projects[$project][subdir] = \"contrib\"\n\n";
+          $module_output .= "projects[$project][version] = \"$version\"\n";
+          $module_output .= "projects[$project][subdir] = \"contrib\"\n\n";
         }
       }
     }
   }
+  if (!empty($module_output)) {
+    $output .= "; +++++ Modules +++++\n\n" . $module_output;
+  }
   if ($no_version != '') {
-    $output .= "; TODO modules without versions\n" . $no_version;
+    $output .= "; +++++ TODO modules without versions +++++\n\n" . $no_version;
   }
   // add all themes to drush file
-  $output .= "\n; Themes\n";
   $result = db_select('system', 's')
   ->fields('s', array('info'))
   ->condition('s.type', 'theme', '=')
@@ -580,45 +600,101 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
       $themes[$info['project']] = $info['version'];
     }
   }
+  $theme_output = '';
   // write themes to file
   foreach ($themes as $project_name => $version) {
-    $output .= "; $project_name\n";
-    $output .= "projects[$project_name][type] = \"theme\"\n";
     // account for custom themes
     if (empty($version)) {
-      $output .= "projects[$project_name][version] = \"\"; TODO add version\n";
-      $output .= "projects[$project_name][subdir] = \"custom\"\n";
+      // we don't want to include version-less items in d.o. packaging
+      // this is unless they have a project page
+      $request = drupal_http_request("http://drupal.org/project/$project_name", array('timeout' => 10));
+      // project not on d.o, put this in the local file only
+      if (isset($request->error)) {
+        // we got an error, this isn't a d.o. project, add it to the local file
+        if ($local) {
+          $theme_output .= "; $project_name\n";
+          $theme_output .= "projects[$project_name][type] = \"theme\"\n";
+          $theme_output .= "projects[$project_name][version] = \"\"; TODO add version\n";
+          $theme_output .= "projects[$project_name][subdir] = \"custom\"\n\n";
+        }
+      }
+      else {
+        // this is a d.o. project but we don't have a version number
+        if (!$local) {
+          $theme_output .= "; $project_name\n";
+          $theme_output .= "projects[$project_name][type] = \"theme\"\n";
+          $theme_output .= "projects[$project_name][version] = \"\"; TODO add version\n";
+          $theme_output .= "projects[$project_name][subdir] = \"contrib\"\n\n";
+        }
+      }
     }
     else {
-      $version = _profiler_builder_get_version($version);
-      $output .= "projects[$project_name][version] = \"$version\"\n";
-      $output .= "projects[$project_name][subdir] = \"contrib\"\n";
+      // TODO: this is a poor assumption, fservers exist
+      // need way of determining that this is a d.o. version
+      // guess is better then nothing but could cause packaging errors
+      if (!$local) {
+        $theme_output .= "; $project_name\n";
+        $theme_output .= "projects[$project_name][type] = \"theme\"\n";
+        $version = _profiler_builder_get_version($version);
+        $theme_output .= "projects[$project_name][version] = \"$version\"\n";
+        $theme_output .= "projects[$project_name][subdir] = \"contrib\"\n\n";
+      }
     }
+  }
+  // add theme output
+  if (!empty($theme_output)) {
+    $output .= "; +++++ Themes +++++\n\n" . $theme_output;
   }
   // add libraries
   $lib_output = '';
-  foreach ($libraries as $key => $lib_name) {
-    // always use profiler dev
-    if ($key == 'profiler') {
-      $dl_location = 'http://ftp.drupal.org/files/projects/profiler-7.x-2.x-dev.tar.gz';
+  // allow for modification of current list
+  
+  drupal_alter('profiler_builder_libraries_list', $libraries, $local, $machine_name);
+  foreach ($libraries as $key => $lib) {
+    // check if we have an array to define the library
+    // this means it was altered to provide good defaults
+    if (!is_array($lib)) {
+      $libname = $lib;
+      $dirname = $key;
+      $type = 'library';
+      $destination = 'libraries';
+      $downtype = 'get';
+      $downurl = '';
     }
     else {
-      $dl_location = '';
+      // if this is an array, populate values for below if set
+      $libname = isset($lib['_name']) ? $lib['_name'] : $key;
+      $dirname = isset($lib['directory_name']) ? $lib['directory_name'] : $key;
+      $type = isset($lib['type']) ? $lib['type'] : 'library';
+      $destination = isset($lib['destination']) ? $lib['destination'] : 'libraries';
+      $downtype = isset($lib['download_type']) ? $lib['download_type'] : 'get';
+      $downurl = isset($lib['download_url']) ? $lib['download_url'] : '';
     }
-    $lib_output .= "libraries[$key][directory_name] = \"$key\"\n";
-    $lib_output .= "libraries[$key][type] = \"library\"\n";
-    $lib_output .= "libraries[$key][destination] = \"libraries\"\n";
-    $lib_output .= "libraries[$key][download][type] = \"get\"\n";
-    $lib_output .= "libraries[$key][download][url] = \"$dl_location\"";
-    // account for empty dl locations
-    if (empty($dl_location)) {
-      $lib_output .= " ; TODO add download URI";
+    // no url should only go to local library listing, otherwise test
+    if ($local || (!empty($downurl) && !$local)) {
+      // output the above
+      $lib_output .= "; $libname\n";
+      $lib_output .= "libraries[$key][directory_name] = \"$dirname\"\n";
+      $lib_output .= "libraries[$key][type] = \"$type\"\n";
+      $lib_output .= "libraries[$key][destination] = \"$destination\"\n";
+      // edge case to allow for patching a remote library
+      if (isset($lib['patch']) && is_array($lib['patch'])) {
+        foreach ($lib['patch'] as $patch) {
+          $lib_output .= "libraries[$key][patch][] = \"$patch\"\n";
+        }
+      }
+      $lib_output .= "libraries[$key][download][type] = \"$downtype\"\n";
+      $lib_output .= "libraries[$key][download][url] = \"$downurl\"";
+      // account for empty dl locations
+      if (empty($downurl)) {
+        $lib_output .= " ; TODO add download URI";
+      }
+      $lib_output .= "\n\n";
     }
-    $lib_output .= "\n\n";
   }
   // only add if there were libraries detected
   if (!empty($lib_output)) {
-    $output .= "\n; Libraries\n" . $lib_output;
+    $output .= "; +++++ Libraries +++++\n\n" . $lib_output;
   }
   // add patches to end of file
   $patch_output = '';
@@ -632,8 +708,8 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
       $path_ary = explode('/', $key);
       foreach ($path_ary as $path_arg => $val) {
         // look for modules key in path, project name is next
-        if (($val == 'modules' || $val == 'themes' || $val == 'libraries') && isset($path_ary[($path_arg+1)]) && $patch_info->filename != $path_ary[($path_arg+1)]) {
-          $patch_project = $path_ary[($path_arg+1)];
+        if (($val == 'modules' || $val == 'themes' || $val == 'libraries') && (count($path_ary) > 1) && isset($path_ary[count($path_ary) - 2]) && $patch_info->filename != $path_ary[($path_arg+1)]) {
+          $patch_project = $path_ary[count($path_ary) - 2];
         }
       }
       // make sure project was found
@@ -673,11 +749,13 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
   foreach ($active_patches as $key => $patch_ary) {
     foreach ($patch_ary as $patch_path) {
       $errors = array();
+      $external_patch = FALSE;
       // test if patch lives on d.o.
-      $request = drupal_http_request("http://drupal.org/files/$patch_path");
+      $request = drupal_http_request("http://drupal.org/files/$patch_path", array('timeout' => 10));
       // patch not on d.o. add error message
       if (isset($request->error)) {
         $errors[] = 'add path to patch';
+        $external_patch = TRUE;
       }
       else {
         $patch_path = "http://drupal.org/files/$patch_path";
@@ -686,16 +764,18 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
       if (strrpos($key, '/')) {
         $errors[] = 'associate patch to a project';
       }
-      $patch_output .= "projects[$key][patch][] = \"$patch_path\"";
-      // if there were errors, add a message
-      if (count($errors) > 0) {
-        $patch_output .= ' ; TODO ' . implode(', ', $errors);
+      if (($local && $external_patch) || (!$local && !$external_patch)) {
+        $patch_output .= "projects[$key][patch][] = \"$patch_path\"";
+        // if there were errors, add a message
+        if (count($errors) > 0) {
+          $patch_output .= ' ; TODO ' . implode(', ', $errors);
+        }
+        $patch_output .= "\n\n";
       }
-      $patch_output .= "\n\n";
     }
   }
   if (!empty($patch_output)) {
-    $output .= "\n; Patches\n" . $patch_output;
+    $output .= "; +++++ Patches +++++\n\n" . $patch_output;
   }
   return $output;
 }
@@ -704,6 +784,13 @@ function _profiler_builder_drush_file($name, $local, $libraries, $patches) {
  * Helper to return standard profile default settings.
  */
 function _profiler_builder_standard_profile_default() {
+  // make sure these modules are enabled that make this possible
+  if (
+    module_exists('menu') && 
+    module_exists('rdf') && 
+    module_exists('taxonomy') && 
+    module_exists('field') &&
+    module_exists('image')) {
   $output = '
   // Insert default pre-defined node types into the database. For a complete
   // list of available node type attributes, refer to the node type API
@@ -871,6 +958,7 @@ function _profiler_builder_standard_profile_default() {
     \'menu_name\' => \'main-menu\',
   );
   menu_link_save($item);';
+  }
   return $output;
 }
 
