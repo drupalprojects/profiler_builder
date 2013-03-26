@@ -53,12 +53,26 @@ function _profiler_builder_settings() {
   foreach ($profiler_includes as $key => $include) {
     $includes[$key] = $include['name'];
   }
+  // This is set to display if libraries exists and profiler doesn't or if libraries doesn't exist
+  $form['profile_info']['profiler'] = array(
+    '#title' => t('Include Profiler'),
+    '#description' => t('Include the <a href="http://drupal.org/project/profiler">@profiler</a>.', array('@profiler' => 'profiler module')),
+    '#type' => 'checkbox',
+    '#default_value' => FALSE,
+    '#access' => TRUE,
+  );
   $form['profile_info']['profiler_includes'] = array(
     '#title' => t('Profiler includes'),
     '#description' => t('Items to include in the creation of the profiler .info file that are supported by the profiler module.'),
     '#type' => 'checkboxes',
     '#options' => $includes,
     '#default_value' => array_keys($includes),
+    // Only include these settings for display if we're including profiler module
+    '#states' => array(
+      'visible' => array(
+        array(':input[name="profiler"]' => array('checked' => TRUE)),
+      ),
+    ),
   );
   // deselect variable packaging if included, this is a fallback default
   if (isset($includes['variables'])) {
@@ -109,6 +123,9 @@ function _profiler_builder_settings() {
       '#multiple' => TRUE,
       '#default_value' => $libraries,
     );
+    if (!array_key_exists('profiler', $libraries)) {
+      $form['profile_info']['profiler']['#access'] = FALSE;
+    }
   }
   $patches = array();
   // find .patch files in install
@@ -193,6 +210,7 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
   $machine_name = $form_state['values']['profile_machine_name'];
   $description = $form_state['values']['description'];
   $exclusive = $form_state['values']['exclusive'];
+  $profiler = $form_state['values']['profiler'];
   $profiler_includes = $form_state['values']['profiler_includes'];
   if (is_array($profiler_includes)) {
     _profiler_builder_unchecked_array($profiler_includes);
@@ -231,13 +249,13 @@ function _profiler_builder_settings_form_submit($form, &$form_state) {
     $create_admin = '';
   }
   // values have been set, now do the processing
-  _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches);
+  _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches);
 }
 
 /**
  * Helper to build a profile
  */
-function _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches) {
+function _profiler_builder_build_profile($name, $machine_name, $description, $exclusive, $profiler, $profiler_includes, $standard_profile_default, $create_admin, $libraries, $patches) {
   // assemble profiler components
   $features = _profiler_builder_list_features();
   // build initial info file
@@ -270,7 +288,7 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
   // build files array
   $files = array(
     $machine_name . '.info' => $info_file,
-    $machine_name . '.install' => _profiler_builder_install_file($machine_name, array_keys($features), $standard_profile_default, $create_admin),
+    $machine_name . '.install' => _profiler_builder_install_file($machine_name, array_keys($features), $standard_profile_default, $create_admin, $profiler),
     $machine_name . '.profile' => _profiler_builder_profile_file($name, $machine_name),
     $drush_file_name => $drush_file,
     $local_file_name => $local_file,
@@ -313,11 +331,15 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
 /**
  * Helper function to create .install file
  */
-function _profiler_builder_install_file($machine_name, $features, $standard_profile_default, $create_admin) {
-  $output = '<?php
+function _profiler_builder_install_file($machine_name, $features, $standard_profile_default, $create_admin, $profiler) {
+  $output = '<?php';
+  // only add profiler library if it's been asked to be included
+  if ($profiler) {
+    $output .= '
   !function_exists(\'profiler_v2\') ? require_once(\'libraries/profiler/profiler.inc\') : FALSE;
-  profiler_v2(\'' . $machine_name . '\');
-
+  profiler_v2(\'' . $machine_name . '\');';
+  }
+  $output .= '
 /**
  * Implements hook_install().
  *

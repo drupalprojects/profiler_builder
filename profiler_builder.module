@@ -36,12 +36,14 @@ function profiler_builder_menu() {
  */
 function _profiler_builder_list_features() {
   $features = array();
-  // load all known features from system table
-  $system_features = features_get_features();
-  // only grab those features that are enabled
-  foreach ($system_features as $feature => $info) {
-    if ($info->status) {
-      $features[$feature] = $feature;
+  if (module_exists('features')) {
+    // load all known features from system table
+    $system_features = features_get_features();
+    // only grab those features that are enabled
+    foreach ($system_features as $feature => $info) {
+      if ($info->status) {
+        $features[$feature] = $feature;
+      }
     }
   }
   return $features;
