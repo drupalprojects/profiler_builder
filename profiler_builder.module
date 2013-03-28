@@ -547,7 +547,10 @@ function profiler_builder_profiler_builder_defined_libraries() {
   $defined_libs['plupload']['patch'][] = "http://drupal.org/files/plupload-1_5_6-rm_examples-1903850-5.patch";
   // colorbox / lightbox style plugin
   $defined_libs['colorbox']['_name'] = t('ColorBox');
-  $defined_libs['colorbox']['download_url'] = "http://colorpowered.com/colorbox/colorbox.zip";
+  $defined_libs['colorbox']['download_url'] = "https://github.com/jackmoore/colorbox/archive/master.zip";
+  // jquery superfish for menus
+  $defined_libs['superfish']['_name'] = t('jQuery Superfish');
+  $defined_libs['superfish']['download_url'] = "https://github.com/mehrpadin/Superfish-for-Drupal/archive/master.zip";
   // twitter bootstrap jquery / css libraries
   $defined_libs['bootstrap']['_name'] = t('Twitter Bootstrap');
   $defined_libs['bootstrap']['_local'] = TRUE;
