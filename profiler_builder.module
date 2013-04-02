@@ -568,5 +568,9 @@ function profiler_builder_profiler_builder_defined_libraries() {
   $defined_libs['oauth']['_name'] = t('OAuth Drupal fork');
   $defined_libs['oauth']['_local'] = TRUE;
   $defined_libs['oauth']['download_url'] = "https://github.com/juampy72/OAuth-PHP/archive/master.zip";
+  // views_timelinejs
+  $defined_libs['timeline']['_name'] = t('Views TimelineJS');
+  $defined_libs['timeline']['_local'] = TRUE;
+  $defined_libs['timeline']['download_url'] = "https://github.com/VeriteCo/TimelineJS/archive/master.zip";
   return $defined_libs;
 }
