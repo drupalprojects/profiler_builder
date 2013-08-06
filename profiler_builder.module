@@ -55,6 +55,10 @@ function _profiler_builder_list_features() {
 function _profiler_builder_ignore_list() {
   $ignore_list = array(
     'profiler_builder_codecache',
+    'drupal_css_cache_files',
+    'drupal_js_cache_files',
+    'preprocess_js',
+    'preprocess_css',
     'views_block_hashes',
     'drupal_private_key',
     'cache_content_flush_cache_page',
@@ -567,6 +571,16 @@ function profiler_builder_profiler_builder_defined_libraries() {
   $defined_libs['bootstrap']['download_url'] = "http://twitter.github.com/bootstrap/assets/bootstrap.zip";
 
   // libraries that aren't in the d.o. packaging white list yet
+  
+  // Shadowbox, popular lightbox2 alternative with difficult make routine
+  $defined_libs['shadowbox']['_name'] = t('ShadowBox');
+  $defined_libs['shadowbox']['_local'] = TRUE;
+  $defined_libs['shadowbox']['download_url'] = "http://www.shadowbox-js.com/download";
+  $defined_libs['shadowbox']['directory_name'] = "shadowbox";
+  $defined_libs['shadowbox']['destination'] = "libraries";
+  $defined_libs['shadowbox']['download_type'] = "post";
+  $defined_libs['shadowbox']['download_post_data'] = "format=tar&adapter=jquery&players[]=img&players[]=iframe&players[]=html&players[]=swf&players[]=flv&players[]=qt&players[]=wmp&language=en&css_support=on";
+  $defined_libs['shadowbox']['download_file_type'] = "tar.gz";
 
   // current license debate, this has not passed yet
   $defined_libs['fitvids']['_name'] = t('FitVids');
