@@ -10,6 +10,8 @@
  * return an array of library definitions in the following drush make format
  * [download][url] is defined as [download_url]
  * [download][type] is defined as [download_type]
+ * [download][file_type] is defined as [download_file_type]
+ * [download][post_data] is defined as [download_post_data]
  * [_name] allows for a human readable name of the library when written to the drush file
  * [_local] boolean to determine if this should be included in the local or d.o. make file
  *          the assumed state is that it is cleared by d.o. packaging white-list

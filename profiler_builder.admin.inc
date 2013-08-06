@@ -696,6 +696,8 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
       $destination = isset($lib['destination']) ? $lib['destination'] : 'libraries';
       $downtype = isset($lib['download_type']) ? $lib['download_type'] : 'get';
       $downurl = isset($lib['download_url']) ? $lib['download_url'] : '';
+      $downpostdata = isset($lib['download_post_data']) ? $lib['download_post_data'] : '';
+      $downfiletype = isset($lib['download_file_type']) ? $lib['download_file_type'] : '';
     }
     // no url should only go to local library listing, otherwise test
     if ($local || (!empty($downurl) && !$local)) {
@@ -716,7 +718,14 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
       if (empty($downurl)) {
         $lib_output .= " ; TODO add download URI";
       }
-      $lib_output .= "\n\n";
+      $lib_output .= "\n";
+      if (!empty($downpostdata)) {
+        $lib_output .= "libraries[$key][download][post_data] = \"$downpostdata\"\n";
+      }
+      if (!empty($downfiletype)) {
+        $lib_output .= "libraries[$key][download][file_type] = \"$downfiletype\"\n";
+      }
+      $lib_output .= "\n";
     }
   }
   // only add if there were libraries detected
