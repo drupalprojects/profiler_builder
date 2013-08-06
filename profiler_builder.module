@@ -564,14 +564,24 @@ function profiler_builder_profiler_builder_defined_libraries() {
   // joyride
   $defined_libs['joyride']['_name'] = t('jQuery Joyride');
   $defined_libs['joyride']['download_url'] = "https://github.com/zurb/joyride/archive/v2.0.3.tar.gz";
+  // fitvids
+  $defined_libs['fitvids']['_name'] = t('FitVids');
+  $defined_libs['fitvids']['download_url'] = "https://raw.github.com/davatron5000/FitVids.js/master/jquery.fitvids.js";
+  
+  // libraries that aren't in the d.o. packaging white list yet
+  
   // twitter bootstrap jquery / css libraries
   $defined_libs['bootstrap']['_name'] = t('Twitter Bootstrap');
   $defined_libs['bootstrap']['_local'] = TRUE;
   $defined_libs['bootstrap']['destination'] = "themes/contrib/bootstrap";
   $defined_libs['bootstrap']['download_url'] = "http://twitter.github.com/bootstrap/assets/bootstrap.zip";
 
-  // libraries that aren't in the d.o. packaging white list yet
-  
+  // btopro download location for pre-packaged bootswatch
+  $defined_libs['bootswatch']['_name'] = t('Bootswatch Twitter lib');
+  $defined_libs['bootswatch']['_local'] = TRUE;
+  $defined_libs['bootswatch']['destination'] = "themes/contrib/bootswatch";
+  $defined_libs['bootswatch']['download_url'] = "https://github.com/btopro/bootswatch_drupal/archive/master.zip";
+
   // Shadowbox, popular lightbox2 alternative with difficult make routine
   $defined_libs['shadowbox']['_name'] = t('ShadowBox');
   $defined_libs['shadowbox']['_local'] = TRUE;
@@ -581,11 +591,6 @@ function profiler_builder_profiler_builder_defined_libraries() {
   $defined_libs['shadowbox']['download_type'] = "post";
   $defined_libs['shadowbox']['download_post_data'] = "format=tar&adapter=jquery&players[]=img&players[]=iframe&players[]=html&players[]=swf&players[]=flv&players[]=qt&players[]=wmp&language=en&css_support=on";
   $defined_libs['shadowbox']['download_file_type'] = "tar.gz";
-
-  // current license debate, this has not passed yet
-  $defined_libs['fitvids']['_name'] = t('FitVids');
-  $defined_libs['fitvids']['_local'] = TRUE;
-  $defined_libs['fitvids']['download_url'] = "https://raw.github.com/davatron5000/FitVids.js/master/jquery.fitvids.js";
   // views_timelinejs
   $defined_libs['timeline']['_name'] = t('Views TimelineJS');
   $defined_libs['timeline']['_local'] = TRUE;
