@@ -591,6 +591,12 @@ function profiler_builder_profiler_builder_defined_libraries() {
   $defined_libs['shadowbox']['download_type'] = "post";
   $defined_libs['shadowbox']['download_post_data'] = "format=tar&adapter=jquery&players[]=img&players[]=iframe&players[]=html&players[]=swf&players[]=flv&players[]=qt&players[]=wmp&language=en&css_support=on";
   $defined_libs['shadowbox']['download_file_type'] = "tar.gz";
+  // jwerty, keystroke jquery plugin
+  $defined_libs['jwerty']['_name'] = t('JWerty');
+  $defined_libs['jwerty']['_local'] = TRUE;
+  $defined_libs['jwerty']['download_url'] = "http://github.com/keithamus/jwerty/tarball/master";
+  $defined_libs['jwerty']['directory_name'] = "jwerty";
+  $defined_libs['jwerty']['destination'] = "libraries";
   // views_timelinejs
   $defined_libs['timeline']['_name'] = t('Views TimelineJS');
   $defined_libs['timeline']['_local'] = TRUE;
