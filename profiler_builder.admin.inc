@@ -366,6 +366,7 @@ function ' . $machine_name . '_install() {
     ->condition(\'type\', \'theme\')
     ->condition(\'name\', $admin_theme)
     ->execute();
+  variable_set(\'theme_default\', $default_theme);
   variable_set(\'admin_theme\', $admin_theme);
   // activate admin theme when editing a node
   variable_set(\'node_admin_theme\', \'1\');
