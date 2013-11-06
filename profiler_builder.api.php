@@ -129,7 +129,7 @@ function hook_profiler_builder_info_include() {
 /**
  * Implements hook_profiler_builder_info_include_alter().
  */
-function hook_profiler_builder_info_include(&$includes) {
+function hook_profiler_builder_info_include_alter(&$includes) {
   $includes['modules']['callback'] = 'my_new_callback_to_handle_modules';
 }
 
