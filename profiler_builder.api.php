@@ -7,14 +7,17 @@
 /**
  * Implements hook_profiler_builder_defined_libraries().
  *
- * return an array of library definitions in the following drush make format
- * [download][url] is defined as [download_url]
- * [download][type] is defined as [download_type]
- * [download][file_type] is defined as [download_file_type]
- * [download][post_data] is defined as [download_post_data]
- * [_name] allows for a human readable name of the library when written to the drush file
- * [_local] boolean to determine if this should be included in the local or d.o. make file
- *          the assumed state is that it is cleared by d.o. packaging white-list
+ * drush make format:
+ *  - [download][url] is defined as [download_url]
+ *  - [download][type] is defined as [download_type]
+ *  - [download][file_type] is defined as [download_file_type]
+ *  - [download][post_data] is defined as [download_post_data]
+ *  - [_name] human readable library name for the drush file
+ *  - [_local] boolean to determine local or d.o. make file
+ * The assumed state is that it is cleared by d.o. packaging white-list.
+ *
+ * @return $defined_libs
+ *   array of libraries that we are aware of.
  */
 function hook_profiler_builder_defined_libraries() {
   $defined_libs = array();
@@ -106,11 +109,15 @@ function hook_profiler_builder_variables_alter(&$variables) {
 
 /**
  * Implements hook_profiler_builder_info_include().
- *  key name needs to be unique
- *  name is a human readable name for this component
- *  callback is a function that will return text to place in the file
+ *
+ * Format of the info include array is:
+ *  - keyname needs to be unique
+ *  - name is a human readable name for this component
+ *  - callback is a function that will return text to place in the file
  * Items added must be available through the profiler API
  * If they aren't you can still add them but they won't do anything
+ * @return $includes
+ *   an array of types of items to include in packaging.
  */
 function hook_profiler_builder_info_include() {
   $includes = array(

@@ -1,7 +1,15 @@
 <?php
+/**
+ * @file
+ * Convert finished sites into install profiles / distributions.
+ */
+// active version of drupal we are building off of
 define('PROIFLER_BUILDER_ACTIVE_CORE', '7');
+// active branch of profiler builder we are using
 define('PROIFLER_BUILDER_ACTIVE_BRANCH', '1');
+// active distribution branch to build towards
 define('PROIFLER_BUILDER_DISTRO_BRANCH', '1');
+// whether or not prefer -dev over actual dev "number"
 define('PROFILER_BUILDER_TRUE_DEV', TRUE);
 
 /**
@@ -311,7 +319,7 @@ function _profiler_builder_export_dependencies() {
   }
   // build the make file project data with everything
   foreach ($system as $module => $info) {
-    //account for the other package in module listing
+    // account for the other package in module listing
     if (!isset($info['package'])) {
       $info['package'] = 'Other';
     }
@@ -321,7 +329,7 @@ function _profiler_builder_export_dependencies() {
   $feature_list = _profiler_builder_list_features();
   // convert data
   foreach ($system as $module => $info) {
-    //account for the other package in module listing
+    // account for the other package in module listing
     if (!isset($info['package'])) {
       $info['package'] = 'Other';
     }
@@ -567,9 +575,9 @@ function profiler_builder_profiler_builder_defined_libraries() {
   // fitvids
   $defined_libs['fitvids']['_name'] = t('FitVids');
   $defined_libs['fitvids']['download_url'] = "https://raw.github.com/davatron5000/FitVids.js/master/jquery.fitvids.js";
-  
+
   // libraries that aren't in the d.o. packaging white list yet
-  
+
   // twitter bootstrap jquery / css libraries
   $defined_libs['bootstrap']['_name'] = t('Twitter Bootstrap');
   $defined_libs['bootstrap']['_local'] = TRUE;

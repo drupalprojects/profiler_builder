@@ -1,5 +1,4 @@
 <?php
-
 /**
  * @file
  * Administrative form / function processing to make profile package
@@ -55,7 +54,7 @@ function _profiler_builder_settings() {
   }
   // This is set to display if libraries exists and profiler doesn't or if libraries doesn't exist
   $form['profile_info']['profiler'] = array(
-    '#title' => t('Include Profiler'),
+    '#title' => t('Include profiler'),
     '#description' => t('Include the <a href="http://drupal.org/project/profiler">@profiler</a>.', array('@profiler' => 'profiler module')),
     '#type' => 'checkbox',
     '#default_value' => FALSE,
@@ -284,7 +283,7 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
   $drush_file = _profiler_builder_drush_file($machine_name, FALSE, $libraries, $patches);
   // build sub-file for local dev
   $local_file = _profiler_builder_drush_file($machine_name, TRUE, $libraries, $patches);
-  
+
   // build files array
   $files = array(
     $machine_name . '.info' => $info_file,
@@ -527,7 +526,7 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
     $output .= "api = \"2\"\n\n";
     $output .= "projects[drupal][version] = \"$active_core.x\"\n";
     $output .= "; include the d.o. profile base\n";
-    $output .= 'includes[] = "drupal-org.make"'."\n\n";
+    $output .= 'includes[] = "drupal-org.make"' . "\n\n";
   }
   else {
     $output = "; $machine_name make file for d.o. usage\n";
@@ -594,9 +593,9 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
         }
       }
       else {
-        // TODO: this is a poor assumption, fservers exist
+        // @todo this is a poor assumption, fservers exist
         // need way of determining that this is a d.o. version
-        // guess is better then nothing but could cause packaging errors
+        // guess its better then nothing but could cause packaging errors
         if (!$local) {
           $version = _profiler_builder_get_version($version);
           $module_output .= "projects[$project][version] = \"$version\"\n";
@@ -657,9 +656,9 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
       }
     }
     else {
-      // TODO: this is a poor assumption, fservers exist
+      // @todo this is a poor assumption, fservers exist
       // need way of determining that this is a d.o. version
-      // guess is better then nothing but could cause packaging errors
+      // guess its better then nothing but could cause packaging errors
       if (!$local) {
         $theme_output .= "; $project_name\n";
         $theme_output .= "projects[$project_name][type] = \"theme\"\n";
@@ -676,7 +675,7 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
   // add libraries
   $lib_output = '';
   // allow for modification of current list
-  
+
   drupal_alter('profiler_builder_libraries_list', $libraries, $local, $machine_name);
   foreach ($libraries as $key => $lib) {
     // check if we have an array to define the library
@@ -825,9 +824,9 @@ function _profiler_builder_drush_file($machine_name, $local, $libraries, $patche
 function _profiler_builder_standard_profile_default() {
   // make sure these modules are enabled that make this possible
   if (
-    module_exists('menu') && 
-    module_exists('rdf') && 
-    module_exists('taxonomy') && 
+    module_exists('menu') &&
+    module_exists('rdf') &&
+    module_exists('taxonomy') &&
     module_exists('field') &&
     module_exists('image')) {
   $output = '
