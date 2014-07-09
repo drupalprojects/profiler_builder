@@ -157,6 +157,8 @@ function _profiler_builder_extras_load_queries() {
  * It will be retrieved on demand via AJAX.
  */
 function profiler_builder_extras_query_put_contents($queries) {
+  // allow other projects to act on this operation
+  module_invoke_all('profiler_builder_extras_query_put_contents', $queries);
   $request_id = time();
   $path = "temporary://profiler_builder_extras_querylog";
   // Create the profiler_builder_extras_querylog within the temp folder, if needed.
