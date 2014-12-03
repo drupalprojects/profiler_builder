@@ -288,14 +288,14 @@ function _profiler_builder_build_profile($name, $machine_name, $description, $ex
 
   // build files array
   $files = array(
-    $machine_name . '.info' => $info_file,
-    $machine_name . '.install' => _profiler_builder_install_file($machine_name, array_keys($features), $standard_profile_default, $create_admin, $profiler),
-    $machine_name . '.profile' => _profiler_builder_profile_file($name, $machine_name),
-    $drush_file_name => $drush_file,
-    $local_file_name => $local_file,
+    $machine_name . '.info' => $info_file, //diff 
+    $machine_name . '.install' => _profiler_builder_install_file($machine_name, array_keys($features), $standard_profile_default, $create_admin, $profiler), // diff = functions chained
+    $machine_name . '.profile' => _profiler_builder_profile_file($name, $machine_name), // replace with what is on the file system
+    $drush_file_name => $drush_file,  //???
+    $local_file_name => $local_file, // ??
   );
   // allow for other projects to integrate with modification of the file repo
-  drupal_alter('profiler_builder_build_files', $files);
+  drupal_alter('profiler_builder_build_files', $files, $machine_name);
   // Generate download file name
   $filename =  $machine_name . '.tar';
   // Clear out output buffer to remove any garbage from tar output.
@@ -525,6 +525,47 @@ if (!function_exists("system_form_install_select_profile_form_alter")) {
   }
 }';
   return $output;
+}
+
+// new function
+function profiler_builder_profiler_builder_build_files_alter(&$files, $machine_name){
+  // do this for just .profile files
+  $file_path = drupal_get_path('profile', $machine_name);
+  if(!empty($file_path)){
+    foreach ($files as $key => $value) { // key is filename value is contents
+      $temp_file = @file_get_contents($file_path . '/' . $key); 
+      $delimited_temp_file = explode('.', $key);
+      $temp_file_extension = array_pop($delimited_temp_file);
+      switch ($temp_file_extension) {
+        case 'profile':
+          if($temp_file !== FALSE){
+            $files[$key] = $temp_file;
+          }
+          break;
+        case 'drecipe':
+        case 'info':
+          // This uses the changes on the new .info file to overrite the ones on the old one.
+          // Don't do anything    
+          break;
+        default:
+          // The default appends files with extensions not in the above cases to the profile
+          // This is where the diffing will occur - Mark
+          break;
+        }
+      }
+    $mask = '/.*/';
+    $extra_files = file_scan_directory($file_path, $mask); // files is the current options array -- verify that this is true --check uri validity?
+    foreach ($extra_files as $key => $value) {
+        if(!isset($files[$value->filename])){
+        // do some thing that has to do with...
+        $extra_files_stuff = @file_get_contents($value->uri);
+        if($extra_files_stuff !== FALSE){
+          $files[$value->filename] = $extra_files_stuff;
+        }
+      }
+    }
+  }
+  return $files;
 }
 
 /**
